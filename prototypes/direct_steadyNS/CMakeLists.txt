@@ -1,5 +1,5 @@
 ##
-#  CMake script for the step-6 tutorial program:
+#  CMake script for the step-3 tutorial program:
 ##
 
 # Set the name of the project and target:
@@ -11,35 +11,35 @@ SET(TARGET "directSteadyNS")
 # you may want to either replace the following statement by something like
 #    FILE(GLOB_RECURSE TARGET_SRC  "source/*.cc")
 #    FILE(GLOB_RECURSE TARGET_INC  "include/*.h")
-#    SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC}) 
+#    SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC})
 # or switch altogether to the large project CMakeLists.txt file discussed
 # in the "CMake in user projects" page accessible from the "User info"
 # page of the documentation.
-
-FILE(GLOB_RECURSE TARGET_SRC *.cc)
-FILE(GLOB_RECURSE TARGET_INC *.h)
-SET(TARGET_SRC ${TARGET_SRC}  ${TARGET_INC}) 
-
-
-#SET(TARGET_SRC
-#  ${TARGET}.cc
-#  )
+SET(TARGET_SRC
+        ${TARGET}.cpp
+        )
 
 # Usually, you will not need to modify anything beyond this point...
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
 
-FIND_PACKAGE(deal.II 9.0.0 QUIET
-  HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
-  )
+FIND_PACKAGE(deal.II 9.1.1 QUIET
+        HINTS ${deal.II_DIR} ${DEAL_II_DIR} ../ ../../ $ENV{DEAL_II_DIR}
+        )
 IF(NOT ${deal.II_FOUND})
-  MESSAGE(FATAL_ERROR "\n"
-    "*** Could not locate a (sufficiently recent) version of deal.II. ***\n\n"
-    "You may want to either pass a flag -DDEAL_II_DIR=/path/to/deal.II to cmake\n"
-    "or set an environment variable \"DEAL_II_DIR\" that contains this path."
-    )
+    MESSAGE(FATAL_ERROR "\n"
+            "*** Could not locate a (sufficiently recent) version of deal.II. ***\n\n"
+            "You may want to either pass a flag -DDEAL_II_DIR=/path/to/deal.II to cmake\n"
+            "or set an environment variable \"DEAL_II_DIR\" that contains this path."
+            )
 ENDIF()
 
-ADD_EXECUTABLE(${TARGET} ${TARGET_SRC})
-DEAL_II_SETUP_TARGET(${TARGET})
-TARGET_LINK_LIBRARIES(${TARGET}) 
+#<<<<<<< HEAD
+#ADD_EXECUTABLE(${TARGET} ${TARGET_SRC})
+#DEAL_II_SETUP_TARGET(${TARGET})
+#TARGET_LINK_LIBRARIES(${TARGET}) 
+#=======
+DEAL_II_INITIALIZE_CACHED_VARIABLES()
+PROJECT(${TARGET})
+DEAL_II_INVOKE_AUTOPILOT()
+#>>>>>>> sharp edge advancement

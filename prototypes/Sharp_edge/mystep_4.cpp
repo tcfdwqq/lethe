@@ -224,28 +224,15 @@ void My_step_4<dim>::sharp_edge() {
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_2(dofs_per_cell);
 
-    const Triangulation<dim> &tria = mesh.get_triangulation();
-    const std::vector<Point<dim> > &vertices = tria.get_vertices();
-    const std::vector<bool> &used = tria.get_used_vertices();
+    unsigned int best_vertex = 0;
 
-    const Triangulation<dim-1,dim> &tria_ib = immersed_mesh.get_triangulation();
-    const std::vector<Point<dim> > &vertices_ib = tria_ib.get_vertices();
-    const std::vector<bool> &used_ib = tria_ib.get_used_vertices();
-
-
-    std::vector<bool>::const_iterator first = std::find(used.begin(), used.end(), true);
-    unsigned int best_vertex = std::distance(used.begin(), first);
-
-    std::vector<bool>::const_iterator first_ib = std::find(used_ib.begin(), used_ib.end(), true);
 
 
     std::vector<Point<dim>> support_point(dof_handler.n_dofs());
     const auto &cell_iterator=dof_handler.active_cell_iterators();
-    //DoFTools::map_dofs_to_support_points(immersed_map,dof_handler, support_point);
 
     double min_cell_d=(GridTools::minimal_cell_diameter(mesh)*GridTools::minimal_cell_diameter(mesh))/sqrt(2*(GridTools::minimal_cell_diameter(mesh)*GridTools::minimal_cell_diameter(mesh)));
-    //double min_cell_d=0.1/(4);
-    //system_matrix_2.copy_from(system_matrix);
+
 
 
     using numbers::PI;
@@ -255,7 +242,6 @@ void My_step_4<dim>::sharp_edge() {
     const Point<2> center_immersed(center_x,center_y);
     double radius=0.2;
     double radius_2=0.4;
-    const unsigned int nb_immersed=vertices_ib.size()/2;
 
 
 
@@ -264,10 +250,10 @@ void My_step_4<dim>::sharp_edge() {
         fe_values.reinit(cell);
         cell->get_dof_indices(local_dof_indices);
         for (unsigned int q_point = 0; q_point < n_q_points; ++q_point) {
-            unsigned int best_vertex_ib = std::distance(used_ib.begin(), first_ib);
-            double       best_dist_ib   = sqrt( (support_points[local_dof_indices[q_point]]- vertices_ib[best_vertex_ib]).norm_square());
+            Point<dim> vertices_ib_j(immersed_x(0),immersed_y(0));
+            double       best_dist_ib   = sqrt((support_points[local_dof_indices[q_point]]- vertices_ib_j).norm_square());
             double       ib_value_select=1;
-            Tensor<1,2, double> best_vect_dist = (support_points[local_dof_indices[q_point]] - vertices_ib[best_vertex_ib]);
+            Tensor<1,2, double> best_vect_dist = (support_points[local_dof_indices[q_point]] - vertices_ib_j);
             for (unsigned int j = 0; j < immersed_x.size(); j++) {
                     Point<dim> vertices_ib_j(immersed_x(j),immersed_y(j));
 
@@ -276,7 +262,7 @@ void My_step_4<dim>::sharp_edge() {
                     //Tensor<1,2 < double>>
                     if (dist < best_dist_ib) {
                         best_vect_dist=vect_dist;
-                        best_vertex_ib = j;
+
                         best_dist_ib = dist;
                         ib_value_select=immersed_value(j);
                     }
@@ -311,30 +297,18 @@ void My_step_4<dim>::sharp_edge() {
                     }
                     system_rhs(global_index_overrigth)=-ib_value_select/(best_dist_ib*best_dist_ib);
 
-
-
-
-
-
-
-
                 }
                 else{
                         for (unsigned int j =  0; j < dof_handler.n_dofs(); j++)
                             system_matrix.set(global_index_overrigth,j,0);
 
                         system_matrix.add(global_index_overrigth,global_index_overrigth,1 );
-                        system_rhs(global_index_overrigth)=1;
+                        system_rhs(global_index_overrigth)=0;
 
                 }
-                }
+            }
         }
     }
-
-   /*system_matrix.clear();
-   sparsity_pattern.copy_from(system_matrix_2);
-    system_matrix.reinit(sparsity_pattern);
-    system_matrix.copy_from(system_matrix_2);*/
 }
 
 template <int dim>
