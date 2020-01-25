@@ -422,7 +422,6 @@ namespace mystep60 {
                         auto neighbor = cell->neighbor(face_no);
                         neighbor->set_refine_flag();
                     }
-
             }
             mesh->execute_coarsening_and_refinement();
         }
@@ -477,10 +476,6 @@ namespace mystep60 {
         identity_sparse.operator=(identity_matrix);
 
 
-
-
-
-
         //define the sparsity block
         global_sparsity.block(0,0).copy_from(stiffness_sparsity);
         global_sparsity.block(0,1).copy_from(coupling_sparsity);
@@ -492,39 +487,6 @@ namespace mystep60 {
         global_sparsity.block(1,1).copy_from(dsp_lagrange);
 
         global_matrix.reinit(global_sparsity);
-
-//        global_matrix_2.reinit(global_sparsity);
-        //Initialisation de la matrice de depart qui sera iterrer par la suite
-        global_matrix.block(0,0).reinit(global_sparsity.block(0,0));
-        global_matrix.block(0,1).reinit(global_sparsity.block(0,1));
-        global_matrix.block(1,1).reinit(global_sparsity.block(1,1));
-        double relative_size=0;
-        for (unsigned int i=0 ; i<dof_handler_sub->n_dofs() ; ++i) {
-            if (i == 0) {
-                global_matrix.block(1,1).set(i, i, 2*relative_size);
-                global_matrix.block(1,1).set(i, i + 1, -relative_size);
-            } else if (i == dof_handler_sub->n_dofs() - 1) {
-                global_matrix.block(1,1).set(i, i, relative_size);
-                global_matrix.block(1,1).set(i, i - 1, -relative_size);
-            } else {
-                global_matrix.block(1,1).set(i, i, 2*relative_size);
-                global_matrix.block(1,1).set(i, i - 1, -relative_size);
-                global_matrix.block(1,1).set(i, i + 1, -relative_size);
-            }
-        }
-        std::cout << "block 0 0: " << global_matrix.block(0,0).m() << " by : "<< global_matrix.block(0,0).n() << std::endl;
-        std::cout << "block 0 1: " << global_matrix.block(0,1).m() << " by : "<< global_matrix.block(0,1).n() << std::endl;
-        std::cout << "block 1 0: " << global_matrix.block(1,0).m() << " by : "<< global_matrix.block(1,0).n() << std::endl;
-        std::cout << "block 1 1: " << global_matrix.block(1,1).m() << " by : "<< global_matrix.block(1,1).n() << std::endl;
-        //DynamicSparsityPattern dsp_lagrange(dof_handler_sub->n_dofs(),dof_handler_sub->n_dofs());
-        //global_sparsity.block(1,1).copy_from(dsp_lagrange);
-
-
-
-
-
-
-
 
 
         // difine the sparsity pattern d'une matrice tridiagonal ( objectif , symetrics et M*lambda=0)
@@ -554,7 +516,6 @@ namespace mystep60 {
         global_sparsity.block(1,1).copy_from(global_sparsity_2);
 
         global_matrix.reinit(global_sparsity);
->>>>>>> A bit of cleaning
 
         //initialisation des block de solution, rhs, vecteur pour l'evaluation des residue
         global_solution.reinit(2);
@@ -604,8 +565,6 @@ namespace mystep60 {
         dof_handler_sub = std_cxx14::make_unique<DoFHandler<dim, spacedim>> (*mesh_sub);
         fe_sub = std_cxx14::make_unique<FE_Q<dim, spacedim>>  (parameters.embedded_fe_deg);
         dof_handler_sub->distribute_dofs(*fe_sub);
-
-
 
         // define the value of the sub domaine
 
@@ -903,7 +862,7 @@ namespace mystep60 {
         }
     }
 }
-
+    
 int main (int argc, char **argv) {
     try {
         using namespace dealii;

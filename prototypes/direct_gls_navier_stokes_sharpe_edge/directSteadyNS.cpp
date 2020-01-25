@@ -171,7 +171,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
   GridGenerator::hyper_cube (triangulation, -1, 1);
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (7);
+  triangulation.refine_global (6);
 }
 
 template <int dim>
@@ -833,12 +833,12 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
     using numbers::PI;
     const double center_x=0;
     const double center_y=0;
-    const double speed=1;
+    const double speed=100;
 
     const Point<2> center_immersed(center_x,center_y);
     double radius=0.21;
     double radius_2=0.91;
-    bool couette=true;
+    bool couette=false;
 
     // overwrite the line for the point in mesh
     MappingQ1<dim> immersed_map;
@@ -1213,6 +1213,11 @@ void DirectSteadyNavierStokes<dim>::torque()
     unsigned int nb_evaluation=100;
     double t_torque=0;
     double t_torque_l=0;
+    double fx_v=0;
+    double fy_v=0;
+
+    double fx_p=0;
+    double fy_p=0;
 
     double T_in=0;
     double dr=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
@@ -1246,7 +1251,8 @@ void DirectSteadyNavierStokes<dim>::torque()
         std::cout << "du_dr " <<du_dr << std::endl;
         std::cout << "local shear stress: " <<du_dr*mu*radius << std::endl;
         t_torque+=radius*du_dr*mu*radius*2*PI*radius/(nb_evaluation-1) ;
-
+        fx_v+=du_dr*mu*radius*2*PI*radius/(nb_evaluation-1)*cos(i * 2 * PI / (nb_evaluation)-PI/2);
+        fy_v+=du_dr*mu*radius*2*PI*radius/(nb_evaluation-1)*sin(i * 2 * PI / (nb_evaluation)-PI/2);
     }
 
     std::cout << "total_torque_small " << t_torque << std::endl;
@@ -1283,6 +1289,26 @@ void DirectSteadyNavierStokes<dim>::torque()
 
     }
     std::cout << "total_torque_large" << t_torque_l << std::endl;
+
+    //pressure force evaluation
+    for (unsigned int i=0;i<nb_evaluation;++i ) {
+        const Point<2> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
+        const auto &cell = GridTools::find_active_cell_around_point(dof_handler, eval_point);
+        Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point);
+        cell->get_dof_indices(local_dof_indices);
+        double P=0;
+        for (unsigned int j=2;j<12;j=j+3 ){
+            P+=fe.shape_value(j,second_point_v)*present_solution(local_dof_indices[j]);
+        }
+
+        fx_p+=P*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+        fy_p+=P*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+
+    }
+    std::cout << "fx_P: " << fx_p << std::endl;
+    std::cout << "fy_P: " << fy_p << std::endl;
+    std::cout << "fx_v: " << fx_v << std::endl;
+    std::cout << "fy_v: " << fy_v << std::endl;
 }
 
 template <int dim>
@@ -1458,7 +1484,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     make_cube_grid(initialSize_);
     exact_solution = new ExactSolutionMMS<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=1;
+    viscosity_=100;
     setup_dofs();
 
 
@@ -1528,7 +1554,7 @@ void DirectSteadyNavierStokes<dim>::runCouette_sharp()
     make_cube_grid(initialSize_);
     exact_solution = new ExactSolutionMMS<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=1.;
+    viscosity_=0.000001;
     setup_dofs();
 
 
