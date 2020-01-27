@@ -118,6 +118,11 @@ private:
     std::vector<types::global_dof_index> dofs_per_block;
 
     double viscosity_;
+    double radius;
+    double radius_2;
+    double speed;
+    bool couette;
+    bool pressure_link;
     const unsigned int           degreeIntegration_;
     Triangulation<dim> triangulation;
     FESystem<dim> fe;
@@ -134,6 +139,8 @@ private:
     BlockVector<double>          newton_update;
     BlockVector<double>          system_rhs;
     BlockVector<double>          evaluation_point;
+    BlockVector<double>          residual_vect;
+    BlockVector<double>          last_vect;
 
     Vector<double> immersed_x;
     Vector<double> immersed_y;
@@ -368,6 +375,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
 }
 */
 //gls
+
 
 template <int dim>
 void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
@@ -659,8 +667,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge() {
 
 
     const Point<2> center_immersed(center_x,center_y);
-    double radius=0.21;
-    double radius_2=0.61;
+
 
     for (unsigned int i=0 ;i <nb_immersed;++i){
         immersed_x(i)=radius*cos(i*2*PI/(nb_immersed/2))+center_x;
@@ -833,12 +840,10 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
     using numbers::PI;
     const double center_x=0;
     const double center_y=0;
-    const double speed=100;
+
 
     const Point<2> center_immersed(center_x,center_y);
-    double radius=0.21;
-    double radius_2=0.91;
-    bool couette=false;
+
 
     // overwrite the line for the point in mesh
     MappingQ1<dim> immersed_map;
@@ -863,8 +868,13 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
 
     double min_cell_d=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
     std::cout << "min cell dist: " << min_cell_d << std::endl;
-    unsigned int bridge_gros=1;
-    unsigned int bridge_petit=1;
+    unsigned int bridge_gros = 1;
+    unsigned int bridge_petit = 1;
+    if (pressure_link==false) {
+        bridge_gros = 1;
+        bridge_petit = 1;
+    }
+
     for (const auto &cell : cell_iterator)  {
 
         fe_values.reinit(cell);
@@ -892,18 +902,8 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                         if (j == 1 or j == 4 or j == 7 or j == 10)
                             system_rhs(global_index_overrigth) = 0;
                     }
-                    /*if (support_points[local_dof_indices[j]][0] == 1) {
+                    if (support_points[local_dof_indices[j]][0] == 1) {
                         unsigned int global_index_overrigth = local_dof_indices[j];
-
-                        for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
-                            system_matrix.set(global_index_overrigth, k, 0);
-
-                        system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
-                        system_rhs(global_index_overrigth) = 0.707*speed;
-                    }*/
-                    if (support_points[local_dof_indices[j]][1] == -1) {
-                        unsigned int global_index_overrigth = local_dof_indices[j];
-
                         for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
                             system_matrix.set(global_index_overrigth, k, 0);
 
@@ -913,18 +913,36 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                         if (j == 1 or j == 4 or j == 7 or j == 10)
                             system_rhs(global_index_overrigth) = 0;
                     }
+                    if (support_points[local_dof_indices[j]][1] == -1) {
+                        unsigned int global_index_overrigth = local_dof_indices[j];
+                        if (j == 0 or j == 3 or j == 6 or j == 9) {
+                            system_rhs(global_index_overrigth) = 1 * speed;
+                            for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
+                                system_matrix.set(global_index_overrigth, k, 0);
+                            system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
+                        }
+                        if (j == 1 or j == 4 or j == 7 or j == 10) {
+                            system_rhs(global_index_overrigth) = 0;
+                            for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
+                                system_matrix.set(global_index_overrigth, k, 0);
+                            system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
+                        }
+                    }
 
                     if (support_points[local_dof_indices[j]][1] == 1) {
                         unsigned int global_index_overrigth = local_dof_indices[j];
-
-                        for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
-                            system_matrix.set(global_index_overrigth, k, 0);
-
-                        system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
-                        if (j == 0 or j == 3 or j == 6 or j == 9)
-                            system_rhs(global_index_overrigth) = 1*speed;
-                        if (j == 1 or j == 4 or j == 7 or j == 10)
+                        if (j == 0 or j == 3 or j == 6 or j == 9) {
+                            system_rhs(global_index_overrigth) = 1 * speed;
+                            for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
+                                system_matrix.set(global_index_overrigth, k, 0);
+                            system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
+                        }
+                        if (j == 1 or j == 4 or j == 7 or j == 10) {
                             system_rhs(global_index_overrigth) = 0;
+                            for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
+                                system_matrix.set(global_index_overrigth, k, 0);
+                            system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
+                        }
                     }
                 }
             }
@@ -998,7 +1016,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                     }
 
                 }
-                else if(k<3 and bridge_petit==0){
+                /*else if(k<3 and bridge_petit==0){
                     //bridge_petit=1;
                     unsigned int l = k;
                     while (l < 12) {
@@ -1060,7 +1078,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                             l = l + dim;
                         }
                     }
-                }
+                }*/
 
                 }
             }
@@ -1117,7 +1135,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                     }
 
                 }
-                else if(k<3 and bridge_gros==0){
+               /* else if(k<3 and bridge_gros==0){
                     //bridge_gros=1;
                     unsigned int l = k;
                     while (l < 12) {
@@ -1179,7 +1197,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                             l = l + dim;
                         }
                     }
-                }
+                }*/
 
             }
         }
@@ -1204,9 +1222,7 @@ void DirectSteadyNavierStokes<dim>::torque()
     FEValues<dim> fe_values(fe, q_formula,update_quadrature_points);
 
     const Point<2> center_immersed(center_x,center_y);
-    double radius=0.21;
-    double radius_2=0.91;
-    double mu=1;
+    double mu=viscosity_;
 
     MappingQ1<dim> immersed_map;
     std::vector<types::global_dof_index> local_dof_indices(fe.dofs_per_cell);
@@ -1248,8 +1264,8 @@ void DirectSteadyNavierStokes<dim>::torque()
         }
         double U2=u_2*cos(i * 2 * PI / (nb_evaluation)-PI/2)+v_2*sin(i * 2 * PI / (nb_evaluation)-PI/2);
         double du_dr=(U2/(radius+dr)-U1/radius)/dr;
-        std::cout << "du_dr " <<du_dr << std::endl;
-        std::cout << "local shear stress: " <<du_dr*mu*radius << std::endl;
+        //std::cout << "du_dr " <<du_dr << std::endl;
+        //std::cout << "local shear stress: " <<du_dr*mu*radius << std::endl;
         t_torque+=radius*du_dr*mu*radius*2*PI*radius/(nb_evaluation-1) ;
         fx_v+=du_dr*mu*radius*2*PI*radius/(nb_evaluation-1)*cos(i * 2 * PI / (nb_evaluation)-PI/2);
         fy_v+=du_dr*mu*radius*2*PI*radius/(nb_evaluation-1)*sin(i * 2 * PI / (nb_evaluation)-PI/2);
@@ -1284,7 +1300,7 @@ void DirectSteadyNavierStokes<dim>::torque()
         double U2=u_2*cos(i * 2 * PI / (nb_evaluation)-PI/2)+v_2*sin(i * 2 * PI / (nb_evaluation)-PI/2);
         double du_dr=(U2/(radius_2-dr)-U1/radius_2)/dr;
 
-        std::cout << "local shear stress: " <<radius_2*du_dr*mu << std::endl;
+        //std::cout << "local shear stress: " <<radius_2*du_dr*mu << std::endl;
         t_torque_l+=radius_2*du_dr*mu*radius_2*2*PI*radius_2/(nb_evaluation-1) ;
 
     }
@@ -1333,7 +1349,7 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               assemble_system(first_step);
               sharp_edge_V2();
               current_res = system_rhs.l2_norm();
-              std::cout  << "Newton iteration: " << outer_iteration << "  - Residual:  " << current_res << std::endl;
+              //std::cout  << "Newton iteration: " << outer_iteration << "  - Residual:  " << current_res << std::endl;
               solve(first_step);
               present_solution = newton_update;
               nonzero_constraints.distribute(present_solution);
@@ -1342,6 +1358,9 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               assemble_rhs(first_step);
               current_res = system_rhs.l2_norm();
               last_res = current_res;
+              last_vect.reinit(present_solution);
+              last_vect=present_solution;
+              ;
             }
           else
             {
@@ -1350,21 +1369,24 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               assemble_system(first_step);
               sharp_edge_V2();
               solve(first_step);
-              for (double alpha = 1.0; alpha > 1e-3; alpha *= 0.5)
+              for (double alpha = 1.0; alpha > 1e-3; alpha *= 0)
                 {
                   evaluation_point = present_solution;
                   evaluation_point.add(alpha, newton_update);
                   nonzero_constraints.distribute(evaluation_point);
                   assemble_rhs(first_step);
-                  current_res = system_rhs.l2_norm();
-                  std::cout << "\t\talpha = " << std::setw(6) << alpha << std::setw(0)
-                            << " res = " << current_res << std::endl;
-                  //if (current_res < last_res)
-                   // break;
                 }
+
               {
                 present_solution = evaluation_point;
                 last_res = current_res;
+                  last_vect-= present_solution;
+
+                  current_res = last_vect.l2_norm();
+                  last_vect.reinit(present_solution);
+                  last_vect=present_solution;
+                  //std::cout << "residual : "<<  current_res << std::endl;
+
               }
             }
           ++outer_iteration;
@@ -1484,15 +1506,21 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     make_cube_grid(initialSize_);
     exact_solution = new ExactSolutionMMS<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=100;
+    viscosity_=0.005;
+    radius=0.21;
+    radius_2=0.91;
+    speed=1;
+    couette=false;
+    pressure_link=false;
     setup_dofs();
 
+    std::cout  << "reynolds for the cylinder : " << speed*radius*2/viscosity_<< std::endl;
 
 //    compute_initial_guess();
     for (unsigned int cycle =0; cycle < 1 ; cycle++)
     {
         if (cycle !=0) refine_mesh_uniform();
-        newton_iteration(1.e-6, 2, true, true);
+        newton_iteration(1.e-6, 20, true, true);
         output_results (cycle);
         torque();
         calculateL2Error();
@@ -1542,10 +1570,6 @@ void DirectSteadyNavierStokes<dim>::runCouette()
     }
     output_file.close();
 }
-
-
-
-
 
 
 template<int dim>
