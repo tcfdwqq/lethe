@@ -515,7 +515,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                         //  fe_values.JxW(q);
 
                         // Jacobian is currently incomplete
-                        if (false)
+                        if (true)
                         {
                             local_matrix(i, j) +=
                                     tau *
@@ -560,7 +560,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                         -tau * (strong_residual * grad_phi_p[i]) * fe_values.JxW(q);
 
                 // SUPG GLS term
-                if (false)
+                if (true)
                 {
                     local_rhs(i) +=
                             -tau *
@@ -902,7 +902,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                         if (j == 1 or j == 4 or j == 7 or j == 10)
                             system_rhs(global_index_overrigth) = 0;
                     }
-                    if (support_points[local_dof_indices[j]][0] == 1) {
+                    /*if (support_points[local_dof_indices[j]][0] == 1) {
                         unsigned int global_index_overrigth = local_dof_indices[j];
                         for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
                             system_matrix.set(global_index_overrigth, k, 0);
@@ -912,11 +912,11 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                             system_rhs(global_index_overrigth) = 1*speed;
                         if (j == 1 or j == 4 or j == 7 or j == 10)
                             system_rhs(global_index_overrigth) = 0;
-                    }
+                    }*/
                     if (support_points[local_dof_indices[j]][1] == -1) {
                         unsigned int global_index_overrigth = local_dof_indices[j];
                         if (j == 0 or j == 3 or j == 6 or j == 9) {
-                            system_rhs(global_index_overrigth) = 1 * speed;
+                            system_rhs(global_index_overrigth) = 0 * speed;
                             for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
                                 system_matrix.set(global_index_overrigth, k, 0);
                             system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
@@ -932,7 +932,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                     if (support_points[local_dof_indices[j]][1] == 1) {
                         unsigned int global_index_overrigth = local_dof_indices[j];
                         if (j == 0 or j == 3 or j == 6 or j == 9) {
-                            system_rhs(global_index_overrigth) = 1 * speed;
+                            system_rhs(global_index_overrigth) = 0 * speed;
                             for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
                                 system_matrix.set(global_index_overrigth, k, 0);
                             system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
@@ -1375,11 +1375,11 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
                   evaluation_point.add(alpha, newton_update);
                   nonzero_constraints.distribute(evaluation_point);
                   assemble_rhs(first_step);
-                }
 
-              {
+
+
                 present_solution = evaluation_point;
-                last_res = current_res;
+
                   last_vect-= present_solution;
 
                   current_res = last_vect.l2_norm();
@@ -1387,6 +1387,12 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
                   last_vect=present_solution;
                   //std::cout << "residual : "<<  current_res << std::endl;
 
+                    std::cout << "\t\talpha = " << std::setw(6) << alpha
+                              << std::setw(0) << " res = " << current_res
+                              << std::endl;
+                    if (current_res < last_res)
+                        break;
+                    last_res = current_res;
               }
             }
           ++outer_iteration;
