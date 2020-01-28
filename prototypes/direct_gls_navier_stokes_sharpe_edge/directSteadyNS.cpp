@@ -175,7 +175,10 @@ DirectSteadyNavierStokes<dim>::~DirectSteadyNavierStokes ()
 template <int dim>
 void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 {
-  GridGenerator::hyper_cube (triangulation, -1, 1);
+    const Point<2> P1(-1,-1);
+    const Point<2> P2(2,1);
+  //GridGenerator::hyper_cube (triangulation, -1, 1);
+    GridGenerator::hyper_rectangle (triangulation, P1, P2);
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
   triangulation.refine_global (6);
