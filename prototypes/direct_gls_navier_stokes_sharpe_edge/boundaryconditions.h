@@ -33,9 +33,9 @@ public:
   PoiseuilleInlet () : Function<dim>(dim+1)
   {
       y2_=1.;
-      y1_=0.;
+      y1_=-1.;
       dy_= 0.5*(y2_ + y1_);
-      vmax_=1./dy_/dy_;
+      vmax_=1.;
   };
 
   virtual double value (const Point<dim>   &p,

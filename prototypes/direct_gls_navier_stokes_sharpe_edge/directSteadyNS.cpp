@@ -178,7 +178,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
     const Point<2> P1(-1,-1);
     const Point<2> P2(2,1);
   //GridGenerator::hyper_cube (triangulation, -1, 1);
-    GridGenerator::hyper_rectangle (triangulation, P1, P2);
+    GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
   triangulation.refine_global (6);
@@ -211,8 +211,12 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
       nonzero_constraints.clear();
 
       DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
-      VectorTools::interpolate_boundary_values(dof_handler, 1, ZeroFunction<dim>(dim+1), nonzero_constraints,
+      VectorTools::interpolate_boundary_values(dof_handler, 0, PoiseuilleInlet<dim>(), nonzero_constraints,
                                                fe.component_mask(velocities));
+        VectorTools::interpolate_boundary_values(dof_handler, 2, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                 fe.component_mask(velocities));
+        VectorTools::interpolate_boundary_values(dof_handler, 3, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                 fe.component_mask(velocities));
 
       if (simulationCase_==TaylorCouette)
       {
@@ -233,6 +237,16 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
                                                ZeroFunction<dim>(dim+1),
                                                zero_constraints,
                                                fe.component_mask(velocities));
+        VectorTools::interpolate_boundary_values(dof_handler,
+                                                 2,
+                                                 ZeroFunction<dim>(dim+1),
+                                                 zero_constraints,
+                                                 fe.component_mask(velocities));
+        VectorTools::interpolate_boundary_values(dof_handler,
+                                                 3,
+                                                 ZeroFunction<dim>(dim+1),
+                                                 zero_constraints,
+                                                 fe.component_mask(velocities));
 
 
       if (simulationCase_==TaylorCouette )
@@ -893,7 +907,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                 ++count_large;
             }
             if( couette==false) {
-                if (j != 2 and j != 5 and j != 8 and j != 11) {
+                /*if (j != 2 and j != 5 and j != 8 and j != 11) {
                     if (support_points[local_dof_indices[j]][0] == -1) {
                         unsigned int global_index_overrigth = local_dof_indices[j];
                         for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
@@ -905,7 +919,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                         if (j == 1 or j == 4 or j == 7 or j == 10)
                             system_rhs(global_index_overrigth) = 0;
                     }
-                    /*if (support_points[local_dof_indices[j]][0] == 1) {
+                    if (support_points[local_dof_indices[j]][0] == 1) {
                         unsigned int global_index_overrigth = local_dof_indices[j];
                         for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
                             system_matrix.set(global_index_overrigth, k, 0);
@@ -915,7 +929,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                             system_rhs(global_index_overrigth) = 1*speed;
                         if (j == 1 or j == 4 or j == 7 or j == 10)
                             system_rhs(global_index_overrigth) = 0;
-                    }*/
+                    }
                     if (support_points[local_dof_indices[j]][1] == -1) {
                         unsigned int global_index_overrigth = local_dof_indices[j];
                         if (j == 0 or j == 3 or j == 6 or j == 9) {
@@ -947,7 +961,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                             system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
                         }
                     }
-                }
+                }*/
             }
 
         }
@@ -1529,7 +1543,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     for (unsigned int cycle =0; cycle < 1 ; cycle++)
     {
         if (cycle !=0) refine_mesh_uniform();
-        newton_iteration(1.e-6, 20, true, true);
+        newton_iteration(1.e-6, 5, true, true);
         output_results (cycle);
         torque();
         calculateL2Error();
