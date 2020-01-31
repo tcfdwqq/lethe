@@ -102,6 +102,8 @@ private:
     void initialize_system();
     void torque();
 
+    void define_neighbors();
+
     void assemble(const bool initial_step,
                    const bool assemble_matrix);
     void assemble_system(const bool initial_step);
@@ -125,8 +127,10 @@ private:
     bool pressure_link;
     const unsigned int           degreeIntegration_;
     Triangulation<dim> triangulation;
+
     FESystem<dim> fe;
     DoFHandler<dim> dof_handler;
+
 
 
     AffineConstraints<double>    zero_constraints;
@@ -139,13 +143,13 @@ private:
     BlockVector<double>          newton_update;
     BlockVector<double>          system_rhs;
     BlockVector<double>          evaluation_point;
-    BlockVector<double>          residual_vect;
     BlockVector<double>          last_vect;
+
 
     Vector<double> immersed_x;
     Vector<double> immersed_y;
     Vector<double> immersed_value;
-    Vector<double> immersed_it;
+
 
     const SimulationCases simulationCase_=MMS;
     const bool stabilized_=false;
@@ -181,7 +185,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
     GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (6);
+  triangulation.refine_global (5);
 }
 
 template <int dim>
@@ -269,6 +273,23 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
               << std::endl;
 
 }
+
+/*template <int dim>
+void DirectSteadyNavierStokes<dim>::define_neighbors ()
+{
+    MappingQ1<dim> immersed_map;
+    std::map< types::global_dof_index, Point< dim >>  	support_points;
+    DoFTools::map_dofs_to_support_points(immersed_map,dof_handler,support_points);
+    const auto &cell_iterator=dof_handler.active_cell_iterators();
+    for (const auto &cell : cell_iterator){
+
+
+
+
+
+
+    }
+}*/
 
 template <int dim>
 void DirectSteadyNavierStokes<dim>::initialize_system()
@@ -673,182 +694,6 @@ void DirectSteadyNavierStokes<dim>::refine_mesh_uniform ()
 }
 
 template <int dim>
-void DirectSteadyNavierStokes<dim>::sharp_edge() {
-    unsigned int nb_immersed=10000;
-    immersed_x.reinit(nb_immersed);
-    immersed_y.reinit(nb_immersed);
-    immersed_value.reinit(nb_immersed);
-    using numbers::PI;
-    const double center_x=0;
-    const double center_y=0;
-
-
-    const Point<2> center_immersed(center_x,center_y);
-
-
-    for (unsigned int i=0 ;i <nb_immersed;++i){
-        immersed_x(i)=radius*cos(i*2*PI/(nb_immersed/2))+center_x;
-        immersed_y(i)=radius*sin(i*2*PI/(nb_immersed/2))+center_y;
-        immersed_value(i)=0;
-    }
-    for (unsigned int i=nb_immersed/2 ;i <nb_immersed;++i){
-        immersed_x(i)=radius_2*cos(i*2*PI/(nb_immersed/2))+center_x;
-        immersed_y(i)=radius_2*sin(i*2*PI/(nb_immersed/2))+center_y;
-        immersed_value(i)=0;
-    }
-
-    immersed_it.reinit(dof_handler.n_dofs());
-
-// overwrite the line for the point in mesh
-    MappingQ1<dim> immersed_map;
-    std::map< types::global_dof_index, Point< dim >>  	support_points;
-    DoFTools::map_dofs_to_support_points(immersed_map,dof_handler,support_points);
-
-    QGauss<dim> q_formula(fe.degree+1);
-    // we need to define what part of the finite elements we need to compute in orther to solve the equation we want
-    // in or case wee need the gradient of the shape function the jacobians of the matrix and the shape function values
-    FEValues<dim> fe_values(fe, q_formula,update_quadrature_points);
-    FEValues<dim> fe_values_2(fe, q_formula,update_quadrature_points);
-    const unsigned int n_q_points = q_formula.size();
-    const unsigned int dofs_per_cell = fe.dofs_per_cell;
-    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-    std::vector<types::global_dof_index> local_dof_indices_2(dofs_per_cell);
-
-    unsigned int best_vertex = 0;
-
-    std::vector<Point<dim>> support_point(dof_handler.n_dofs());
-    const auto &cell_iterator=dof_handler.active_cell_iterators();
-
-    double min_cell_d=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
-    std::cout << "min cell dist: " << min_cell_d << std::endl;
-    for (const auto &cell : cell_iterator)  {
-        fe_values.reinit(cell);
-        cell->get_dof_indices(local_dof_indices);
-        for (unsigned int kk = 0; kk< 2; ++kk) {
-            for (unsigned int q_point = kk; q_point < local_dof_indices.size(); q_point += dim + 1) {
-                Point<dim> vertices_ib_j(immersed_x(0), immersed_y(0));
-                double best_dist_ib = sqrt((support_points[local_dof_indices[q_point]] - vertices_ib_j).norm_square());
-                double ib_value_select = 1;
-                Tensor<1, 2, double> best_vect_dist = (support_points[local_dof_indices[q_point]] - vertices_ib_j);
-                for (unsigned int j = 0; j < immersed_x.size(); j++) {
-                    Point<dim> vertices_ib_j(immersed_x(j), immersed_y(j));
-                    Tensor<1, 2, double> vect_dist = (support_points[local_dof_indices[q_point]] - vertices_ib_j);
-                    double dist = sqrt(vect_dist[1] * vect_dist[1] + vect_dist[0] * vect_dist[0]);
-                    //Tensor<1,2 < double>>
-                    if (dist < best_dist_ib) {
-                        best_vect_dist = vect_dist;
-                        best_dist_ib = dist;
-                        ib_value_select = immersed_value(j);
-                    }
-                }
-                unsigned int global_index_overrigth = local_dof_indices[q_point];
-                if (best_dist_ib < min_cell_d & immersed_it[global_index_overrigth] <= 2) {
-
-
-                 //   std::cout << "best dist: " << best_dist_ib << std::endl;
-                   // std::cout << "position of dof: " << support_points[local_dof_indices[q_point]] << std::endl;
-                    //std::cout << "index global of dof: " << local_dof_indices[q_point] << std::endl;
-                    //std::cout << "DOFS per cell: " << fe.dofs_per_cell << std::endl;
-
-
-                  //  for(unsigned int j=0 ;j<fe.dofs_per_cell;++j){
-                       // std::cout << "index global of local dof: " << local_dof_indices[j] << std::endl;
-                    //}
-
-                    if (best_dist_ib != 0) {
-
-                        const Point<dim> second_point(support_points[local_dof_indices[q_point]] + best_vect_dist);
-                        const Point<dim> ib_point(support_points[local_dof_indices[q_point]] - best_vect_dist);
-                        const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler, second_point);
-
-
-                        cell_2->get_dof_indices(local_dof_indices);
-                        Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
-                       // std::cout << "CELL_2" << std::endl;
-
-                        //for(unsigned int j=0 ;j<fe.dofs_per_cell;++j){
-                        //    std::cout << "index global of local dof: " << local_dof_indices[j] << std::endl;
-                        //}
-
-                        for (unsigned int j = 0; j < dof_handler.n_dofs(); j++)
-                            system_matrix.set(global_index_overrigth, j, 0);
-
-                        system_matrix.add(global_index_overrigth, global_index_overrigth,
-                                          -2 / (best_dist_ib * best_dist_ib));
-                        immersed_it[global_index_overrigth] = immersed_it[global_index_overrigth] + 1;
-
-                        for (unsigned int j = kk; j < fe.dofs_per_cell; j+=dim+1) {
-                            //td::cout << "index global of dof: " << local_dof_indices[j]<< std::endl;
-
-                            system_matrix.add(global_index_overrigth, local_dof_indices[j],
-                                              fe.shape_value(j, second_point_v) / (best_dist_ib * best_dist_ib));
-                        }
-                        if(kk==0)
-                        {
-                            if(ib_point.norm()<=radius)
-                                system_rhs(global_index_overrigth) =  -ib_point[1]/radius/ (best_dist_ib * best_dist_ib);
-                            else
-                                system_rhs(global_index_overrigth) =  0/ (best_dist_ib * best_dist_ib);
-                        }
-                        else{
-                            if(ib_point.norm()<=radius)
-                                system_rhs(global_index_overrigth) =  ib_point[0]/radius/ (best_dist_ib * best_dist_ib);
-                            else
-                                system_rhs(global_index_overrigth) =  0/ (best_dist_ib * best_dist_ib);
-                        }
-
-
-                    } else {
-                        for (unsigned int j = kk; j < fe.dofs_per_cell; j+=dim+1)
-                            system_matrix.set(global_index_overrigth, j, 0);
-
-                        system_matrix.add(global_index_overrigth, global_index_overrigth, 1);
-                        system_rhs(global_index_overrigth) = 0;
-                        immersed_it[global_index_overrigth] = immersed_it[global_index_overrigth] + 1;
-
-                    }
-                }
-                /*if (support_points[local_dof_indices[q_point]][0] == -1 & immersed_it[global_index_overrigth] <= 2) {
-                    unsigned int global_index_overrigth = local_dof_indices[q_point];
-                    for (unsigned int j = 0; j < dof_handler.n_dofs(); j++)
-                        system_matrix.set(global_index_overrigth, j, 0);
-
-                    system_matrix.add(global_index_overrigth, global_index_overrigth, 1);
-                    system_rhs(global_index_overrigth) = 0;
-                    immersed_it[global_index_overrigth] = immersed_it[global_index_overrigth] + 1;
-                }
-                if (support_points[local_dof_indices[q_point]][0] == 1 & immersed_it[global_index_overrigth] <= 2) {
-                    unsigned int global_index_overrigth = local_dof_indices[q_point];
-                    for (unsigned int j = 0; j < dof_handler.n_dofs(); j++)
-                        system_matrix.set(global_index_overrigth, j, 0);
-
-                    system_matrix.add(global_index_overrigth, global_index_overrigth, 1);
-                    system_rhs(global_index_overrigth) = 0;
-                    immersed_it[global_index_overrigth] = immersed_it[global_index_overrigth] + 1;
-                }
-                if (support_points[local_dof_indices[q_point]][1] == 1 & immersed_it[global_index_overrigth] <= 2) {
-                    unsigned int global_index_overrigth = local_dof_indices[q_point];
-                    for (unsigned int j = 0; j < dof_handler.n_dofs(); j++)
-                        system_matrix.set(global_index_overrigth, j, 0);
-
-                    system_matrix.add(global_index_overrigth, global_index_overrigth, 1);
-                    system_rhs(global_index_overrigth) = 0;
-                    immersed_it[global_index_overrigth] = immersed_it[global_index_overrigth] + 1;
-                }
-                if (support_points[local_dof_indices[q_point]][1] == -1 & immersed_it[global_index_overrigth] <= 2) {
-                    unsigned int global_index_overrigth = local_dof_indices[q_point];
-                    for (unsigned int j = 0; j < dof_handler.n_dofs(); j++)
-                        system_matrix.set(global_index_overrigth, j, 0);
-
-                    system_matrix.add(global_index_overrigth, global_index_overrigth, 1);
-                    system_rhs(global_index_overrigth) = 0;
-                    immersed_it[global_index_overrigth] = immersed_it[global_index_overrigth] + 1;
-                }*/
-            }
-        }
-    }
-}
-template <int dim>
 void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
     unsigned int nb_immersed=10000;
     immersed_x.reinit(nb_immersed);
@@ -858,14 +703,15 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
     const double center_x=0;
     const double center_y=0;
 
-
     const Point<2> center_immersed(center_x,center_y);
-
-
+    std::vector<typename DoFHandler<dim>::active_cell_iterator> active_neighbors;
+    //on<dim> neighbors;
     // overwrite the line for the point in mesh
     MappingQ1<dim> immersed_map;
     std::map< types::global_dof_index, Point< dim >>  	support_points;
     DoFTools::map_dofs_to_support_points(immersed_map,dof_handler,support_points);
+
+    //DoFHandler<dim> cell_neighbors;
 
     QGauss<dim> q_formula(fe.degree+1);
     // we need to define what part of the finite elements we need to compute in orther to solve the equation we want
@@ -877,11 +723,12 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_2(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_3(dofs_per_cell);
-
+    Vector<double> vertex_index;
     unsigned int best_vertex = 0;
 
     std::vector<Point<dim>> support_point(dof_handler.n_dofs());
     const auto &cell_iterator=dof_handler.active_cell_iterators();
+
 
     double min_cell_d=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
     std::cout << "min cell dist: " << min_cell_d << std::endl;
@@ -906,70 +753,14 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
             if ((support_points[local_dof_indices[j]]-center_immersed).norm()<=radius_2){
                 ++count_large;
             }
-            if( couette==false) {
-                /*if (j != 2 and j != 5 and j != 8 and j != 11) {
-                    if (support_points[local_dof_indices[j]][0] == -1) {
-                        unsigned int global_index_overrigth = local_dof_indices[j];
-                        for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
-                            system_matrix.set(global_index_overrigth, k, 0);
 
-                        system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
-                        if (j == 0 or j == 3 or j == 6 or j == 9)
-                            system_rhs(global_index_overrigth) = 1*speed;
-                        if (j == 1 or j == 4 or j == 7 or j == 10)
-                            system_rhs(global_index_overrigth) = 0;
-                    }
-                    if (support_points[local_dof_indices[j]][0] == 1) {
-                        unsigned int global_index_overrigth = local_dof_indices[j];
-                        for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
-                            system_matrix.set(global_index_overrigth, k, 0);
 
-                        system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
-                        if (j == 0 or j == 3 or j == 6 or j == 9)
-                            system_rhs(global_index_overrigth) = 1*speed;
-                        if (j == 1 or j == 4 or j == 7 or j == 10)
-                            system_rhs(global_index_overrigth) = 0;
-                    }
-                    if (support_points[local_dof_indices[j]][1] == -1) {
-                        unsigned int global_index_overrigth = local_dof_indices[j];
-                        if (j == 0 or j == 3 or j == 6 or j == 9) {
-                            system_rhs(global_index_overrigth) = 0 * speed;
-                            for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
-                                system_matrix.set(global_index_overrigth, k, 0);
-                            system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
-                        }
-                        if (j == 1 or j == 4 or j == 7 or j == 10) {
-                            system_rhs(global_index_overrigth) = 0;
-                            for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
-                                system_matrix.set(global_index_overrigth, k, 0);
-                            system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
-                        }
-                    }
-
-                    if (support_points[local_dof_indices[j]][1] == 1) {
-                        unsigned int global_index_overrigth = local_dof_indices[j];
-                        if (j == 0 or j == 3 or j == 6 or j == 9) {
-                            system_rhs(global_index_overrigth) = 0 * speed;
-                            for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
-                                system_matrix.set(global_index_overrigth, k, 0);
-                            system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
-                        }
-                        if (j == 1 or j == 4 or j == 7 or j == 10) {
-                            system_rhs(global_index_overrigth) = 0;
-                            for (unsigned int k = 0; k < dof_handler.n_dofs(); k++)
-                                system_matrix.set(global_index_overrigth, k, 0);
-                            system_matrix.set(global_index_overrigth, global_index_overrigth, 1);
-                        }
-                    }
-                }*/
-            }
 
         }
+
         if (couette==false){
         count_large=0;
         }
-       // std::cout << "count small: " << count_small<< std::endl;
-        //std::cout << "count large: " << count_large<< std::endl;
         if (count_small!=0 and count_small!=local_dof_indices.size()){
             //cellule coupe par boundary small
             for (unsigned int k = 0; k< 3; ++k) {
@@ -981,18 +772,56 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                                                                                                   center_immersed) /
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed).norm());
-                        //std::cout << "dist_boundary: " << support_points[local_dof_indices[l]]<< std::endl;
-                        //std::cout << "dist_boundary: " << radius*(support_points[local_dof_indices[l]]-center_immersed)/(support_points[local_dof_indices[l]]-center_immersed).norm()<< std::endl;
-                        //std::cout << "dist_boundary: " << vect_dist<< std::endl;
+
                         double dist = sqrt(vect_dist[1] * vect_dist[1] + vect_dist[0] * vect_dist[0]);
                         const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
-                        const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler, second_point);
+
+                        //const auto &cell_2 = GridTools::get_active_child_cells<DoFHandler<dim>>(cell);
+
+                        unsigned int v;
+                        if (l<3)
+                            v=0;
+                        else if (l<6)
+                            v=1;
+                        else if (l<9)
+                            v=2;
+                        else if (l<12)
+                            v=3;
+
+                        unsigned int v_index= cell->vertex_index(v);
+                        active_neighbors=GridTools::find_cells_adjacent_to_vertex(dof_handler,v_index);
+                        unsigned int cell_found=0;
+                        unsigned int n_active_cells= active_neighbors.size();
+
+                        for (unsigned int cell_index=0;  cell_index < n_active_cells;++cell_index){
+                            try {
+                                const auto &cell_3=active_neighbors[cell_index];
+                                const Point<dim> p_cell = immersed_map.transform_real_to_unit_cell(active_neighbors[cell_index], second_point);
+                                const double dist = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+                                if (dist == 0) {
+                                    cell_found=cell_index;
+                                    break;
+                                }
+                            }
+                            catch (typename MappingQGeneric<dim>::ExcTransformationFailed ){
+                            }
+                        }
+
+
+                        //const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler,second_point);
+                        const auto &cell_2 = active_neighbors[cell_found];
                         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
+
                         cell_2->get_dof_indices(local_dof_indices_2);
 
                         unsigned int global_index_overrigth = local_dof_indices[l];
                         for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
                             system_matrix.set(global_index_overrigth, m, 0);
+                        /*for (unsigned int m = 0; m < sparsity_pattern.row_length(global_index_overrigth); m++){
+                            std::cout << "min cell dist: " << sparsity_pattern.block(1,1).row_position(global_index_overrigth,m) << std::endl;
+                            system_matrix.set(global_index_overrigth, sparsity_pattern.block(0,0).row_position(global_index_overrigth,m), 0);
+                        }*/
+
                         system_matrix.set(global_index_overrigth, global_index_overrigth,
                                           -2 / (dist * dist));
                         unsigned int n = k;
@@ -1033,70 +862,6 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                     }
 
                 }
-                /*else if(k<3 and bridge_petit==0){
-                    //bridge_petit=1;
-                    unsigned int l = k;
-                    while (l < 12) {
-                        Tensor<1, 2, double> vect_dist = (support_points[local_dof_indices[l]] - radius *
-                                                                                                 (support_points[local_dof_indices[l]] -
-                                                                                                  center_immersed) /
-                                                                                                 (support_points[local_dof_indices[l]] -
-                                                                                                  center_immersed).norm());
-
-                        double dist = sqrt(vect_dist[1] * vect_dist[1] + vect_dist[0] * vect_dist[0]);
-                        const Point<dim> second_point(support_points[local_dof_indices[l]] + 1*vect_dist);
-                        const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler, second_point);
-                        Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
-                        cell_2->get_dof_indices(local_dof_indices_2);
-
-                        const Point<dim> third_point(support_points[local_dof_indices[l]] - 1*vect_dist);
-                        const auto &cell_3 = GridTools::find_active_cell_around_point(dof_handler, third_point);
-                        Point<dim> third_point_v = immersed_map.transform_real_to_unit_cell(cell_3, third_point);
-                        cell_3->get_dof_indices(local_dof_indices_3);
-
-                        unsigned int global_index_overrigth = local_dof_indices[l];
-
-                        for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
-                            system_matrix.set(global_index_overrigth, m, 0);
-                        system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                          -2 / (dist * dist));
-                        unsigned int n = k;
-                        while (n < 12) {
-
-                            system_matrix.add(global_index_overrigth ,local_dof_indices_3[n],fe.shape_value(n, third_point_v) / (dist * dist));
-                            if (n < (dim + 1) * 4) {
-                                n = n + dim + 1;
-                            } else {
-                                n = n + dim;
-                            }
-                        }
-
-                        n = k;
-                        while (n < 12) {
-                            system_matrix.add(global_index_overrigth ,local_dof_indices_2[n],fe.shape_value(n, second_point_v) / (dist * dist));
-                            if (n < (dim + 1) * 4) {
-                                n = n + dim + 1;
-                            } else {
-                                n = n + dim;
-                            }
-                        }
-
-
-                        if (k == 0) {
-                            system_rhs(global_index_overrigth) = 0;
-                        } else {
-                            system_rhs(global_index_overrigth) = 0;
-                        }
-
-
-                        if (l < (dim + 1) * 4) {
-                            l = l + dim + 1;
-                        } else {
-                            l = l + dim;
-                        }
-                    }
-                }*/
-
                 }
             }
 
@@ -1111,12 +876,40 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                                                                                                   center_immersed) /
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed).norm());
-                        //std::cout << "dist_boundary: " << support_points[local_dof_indices[l]]<< std::endl;
-                        //std::cout << "dist_boundary: " << radius*(support_points[local_dof_indices[l]]-center_immersed)/(support_points[local_dof_indices[l]]-center_immersed).norm()<< std::endl;
-                        //std::cout << "dist_boundary: " << vect_dist<< std::endl;
                         double dist = sqrt(vect_dist[1] * vect_dist[1] + vect_dist[0] * vect_dist[0]);
                         const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
-                        const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler, second_point);
+                        unsigned int v;
+                        if (l<3)
+                            v=0;
+                        else if (l<6)
+                            v=1;
+                        else if (l<9)
+                            v=2;
+                        else if (l<12)
+                            v=3;
+
+                        unsigned int v_index= cell->vertex_index(v);
+                        active_neighbors=GridTools::find_cells_adjacent_to_vertex(dof_handler,v_index);
+                        unsigned int cell_found=0;
+                        unsigned int n_active_cells= active_neighbors.size();
+
+                        for (unsigned int cell_index=0;  cell_index < n_active_cells;++cell_index){
+                            try {
+                                const auto &cell_3=active_neighbors[cell_index];
+                                const Point<dim> p_cell = immersed_map.transform_real_to_unit_cell(active_neighbors[cell_index], second_point);
+                                const double dist = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+                                if (dist == 0) {
+                                    cell_found=cell_index;
+                                    break;
+                                }
+                            }
+                            catch (typename MappingQGeneric<dim>::ExcTransformationFailed ){
+                            }
+                        }
+
+
+                        //const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler,second_point);
+                        const auto &cell_2 = active_neighbors[cell_found];
                         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
                         cell_2->get_dof_indices(local_dof_indices_2);
 
@@ -1152,73 +945,8 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                     }
 
                 }
-               /* else if(k<3 and bridge_gros==0){
-                    //bridge_gros=1;
-                    unsigned int l = k;
-                    while (l < 12) {
-                        Tensor<1, 2, double> vect_dist = (support_points[local_dof_indices[l]] - radius_2 *
-                                                                                                 (support_points[local_dof_indices[l]] -
-                                                                                                  center_immersed) /
-                                                                                                 (support_points[local_dof_indices[l]] -
-                                                                                                  center_immersed).norm());
-
-                        double dist = sqrt(vect_dist[1] * vect_dist[1] + vect_dist[0] * vect_dist[0]);
-                        const Point<dim> second_point(support_points[local_dof_indices[l]] + 1*vect_dist);
-                        const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler, second_point);
-                        Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
-                        cell_2->get_dof_indices(local_dof_indices_2);
-
-                        const Point<dim> third_point(support_points[local_dof_indices[l]] - 1*vect_dist);
-                        const auto &cell_3 = GridTools::find_active_cell_around_point(dof_handler, third_point);
-                        Point<dim> third_point_v = immersed_map.transform_real_to_unit_cell(cell_3, third_point);
-                        cell_3->get_dof_indices(local_dof_indices_3);
-
-                        unsigned int global_index_overrigth = local_dof_indices[l];
-
-                        for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
-                            system_matrix.set(global_index_overrigth, m, 0);
-                        system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                          -2 / (dist * dist));
-                        unsigned int n = k;
-                        while (n < 12) {
-
-                            system_matrix.add(global_index_overrigth ,local_dof_indices_3[n],fe.shape_value(n, third_point_v) / (dist * dist));
-                            if (n < (dim + 1) * 4) {
-                                n = n + dim + 1;
-                            } else {
-                                n = n + dim;
-                            }
-                        }
-
-                        n = k;
-                        while (n < 12) {
-                            system_matrix.add(global_index_overrigth ,local_dof_indices_2[n],fe.shape_value(n, second_point_v) / (dist * dist));
-                            if (n < (dim + 1) * 4) {
-                                n = n + dim + 1;
-                            } else {
-                                n = n + dim;
-                            }
-                        }
-
-
-                        if (k == 0) {
-                            system_rhs(global_index_overrigth) = 0;
-                        } else {
-                            system_rhs(global_index_overrigth) = 0;
-                        }
-
-
-                        if (l < (dim + 1) * 4) {
-                            l = l + dim + 1;
-                        } else {
-                            l = l + dim;
-                        }
-                    }
-                }*/
-
             }
         }
-
     }
     for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
         system_matrix.set(dof_handler.n_dofs()-1, m, 0);
@@ -1243,7 +971,7 @@ void DirectSteadyNavierStokes<dim>::torque()
 
     MappingQ1<dim> immersed_map;
     std::vector<types::global_dof_index> local_dof_indices(fe.dofs_per_cell);
-    unsigned int nb_evaluation=100;
+    unsigned int nb_evaluation=1000;
     double t_torque=0;
     double t_torque_l=0;
     double fx_v=0;
@@ -1261,10 +989,6 @@ void DirectSteadyNavierStokes<dim>::torque()
         cell->get_dof_indices(local_dof_indices);
         double u_1=0;
         double v_1=0;
-        /*for (unsigned int j=0;j<12;j=j+3 ){
-            u_1+=fe.shape_value(j,second_point_v)*present_solution(local_dof_indices[j]);
-            v_1+=fe.shape_value(j+1,second_point_v)*present_solution(local_dof_indices[j+1]);
-        }*/
         u_1=-sin(i * 2 * PI / (nb_evaluation));
         v_1=cos(i * 2 * PI / (nb_evaluation));
         double U1=u_1*cos(i * 2 * PI / (nb_evaluation)-PI/2)+v_1*sin(i * 2 * PI / (nb_evaluation)-PI/2);
@@ -1543,7 +1267,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     for (unsigned int cycle =0; cycle < 1 ; cycle++)
     {
         if (cycle !=0) refine_mesh_uniform();
-        newton_iteration(1.e-6, 5, true, true);
+        newton_iteration(1.e-6, 10, true, true);
         output_results (cycle);
         torque();
         calculateL2Error();
