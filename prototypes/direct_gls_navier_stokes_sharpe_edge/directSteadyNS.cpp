@@ -988,6 +988,10 @@ void DirectSteadyNavierStokes<dim>::torque()
 
     double fx_p=0;
     double fy_p=0;
+    double fx_p_1=0;
+    double fy_p_1=0;
+    double fx_p_2=0;
+    double fy_p_2=0;
 
     double T_in=0;
     double dr=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
@@ -1073,8 +1077,10 @@ void DirectSteadyNavierStokes<dim>::torque()
     }
     std::cout << "fx_P: " << fx_p << std::endl;
     std::cout << "fy_P: " << fy_p << std::endl;
-    fx_p=0;
-    fy_p=0;
+    fx_p_1=0;
+    fy_p_1=0;
+    fx_p_2=0;
+    fy_p_2=0;
     for (unsigned int i=0;i<nb_evaluation;++i ) {
 
         const Point<2> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
@@ -1099,13 +1105,18 @@ void DirectSteadyNavierStokes<dim>::torque()
             P_2+=fe.shape_value(j,second_point_v_2)*present_solution(local_dof_indices_2[j]);
             P_3+=fe.shape_value(j,second_point_v_3)*present_solution(local_dof_indices_3[j]);
         }
-        double P=P_1+(P_1-P_2)+((P_1-P_2)-(P_2-P_3));
-        fx_p+=P*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
-        fy_p+=P*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+        double P2=P_1+(P_1-P_2)+((P_1-P_2)-(P_2-P_3));
+        double P=P_1+(P_1-P_2);
+        fx_p_2+=P2*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+        fy_p_2+=P2*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+        fx_p_1+=P*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+        fy_p_1+=P*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
 
     }
-    std::cout << "fx_P: " << fx_p << std::endl;
-    std::cout << "fy_P: " << fy_p << std::endl;
+    std::cout << "ordre 1 fx_P: " << fx_p_1 << std::endl;
+    std::cout << "ordre 1 fy_P: " << fy_p_1 << std::endl;
+    std::cout << "ordre 2 fx_P: " << fx_p_2 << std::endl;
+    std::cout << "ordre 2 fy_P: " << fy_p_2 << std::endl;
     std::cout << "fx_v: " << fx_v << std::endl;
     std::cout << "fy_v: " << fy_v << std::endl;
 }
