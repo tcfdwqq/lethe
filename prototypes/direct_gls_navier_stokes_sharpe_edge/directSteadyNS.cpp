@@ -68,7 +68,7 @@
 #include "forcingfunctions.h"
 #include "boundaryconditions.h"
 
-
+#include <deal.II/base/timer.h>
 #include <fstream>
 #include <iostream>
 
@@ -156,6 +156,7 @@ private:
     const bool iterative_=false;
     std::vector<double> L2ErrorU_;
     const int initialSize_=4;
+    TimerOutput monitor;
 };
 
 
@@ -164,7 +165,7 @@ template<int dim>
 DirectSteadyNavierStokes<dim>::DirectSteadyNavierStokes(const unsigned int degreeVelocity, const unsigned int degreePressure):
     viscosity_(1), degreeIntegration_(degreeVelocity),
     fe(FE_Q<dim>(degreeVelocity), dim, FE_Q<dim>(degreePressure), 1),
-    dof_handler(triangulation)
+    dof_handler(triangulation),monitor(std::cout, TimerOutput::summary, TimerOutput::cpu_and_wall_times)
 {}
 
 
@@ -179,13 +180,14 @@ DirectSteadyNavierStokes<dim>::~DirectSteadyNavierStokes ()
 template <int dim>
 void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 {
+    TimerOutput::Scope timer_section(monitor, "make_cube_grid");
     const Point<2> P1(-1,-1);
     const Point<2> P2(2,1);
   //GridGenerator::hyper_cube (triangulation, -1, 1);
     GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (5);
+  triangulation.refine_global (7);
 }
 
 template <int dim>
@@ -198,6 +200,7 @@ void DirectSteadyNavierStokes<dim>::refine_grid()
 template <int dim>
 void DirectSteadyNavierStokes<dim>::setup_dofs ()
 {
+    TimerOutput::Scope timer_section(monitor, "setup_dofs");
     system_matrix.clear();
 
     dof_handler.distribute_dofs(fe);
@@ -294,6 +297,7 @@ void DirectSteadyNavierStokes<dim>::define_neighbors ()
 template <int dim>
 void DirectSteadyNavierStokes<dim>::initialize_system()
 {
+    TimerOutput::Scope timer_section(monitor, "initialize");
   {
     BlockDynamicSparsityPattern dsp (dofs_per_block, dofs_per_block);
     DoFTools::make_flux_sparsity_pattern (dof_handler, dsp, nonzero_constraints);
@@ -419,6 +423,7 @@ template <int dim>
 void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                                            const bool assemble_matrix)
 {
+    TimerOutput::Scope timer_section(monitor, "assemble");
     if (assemble_matrix)
         system_matrix = 0;
     system_rhs = 0;
@@ -646,6 +651,7 @@ void DirectSteadyNavierStokes<dim>::assemble_rhs(const bool initial_step)
 template <int dim>
 void DirectSteadyNavierStokes<dim>::solve (const bool initial_step)
 {
+    TimerOutput::Scope timer_section(monitor, "solve");
   const AffineConstraints<double> &constraints_used = initial_step ? nonzero_constraints : zero_constraints;
   SparseDirectUMFPACK direct;
   direct.initialize(system_matrix);
@@ -695,6 +701,7 @@ void DirectSteadyNavierStokes<dim>::refine_mesh_uniform ()
 
 template <int dim>
 void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
+    TimerOutput::Scope timer_section(monitor, "sharp_edge");
     unsigned int nb_immersed=10000;
     immersed_x.reinit(nb_immersed);
     immersed_y.reinit(nb_immersed);
@@ -776,7 +783,6 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                         double dist = sqrt(vect_dist[1] * vect_dist[1] + vect_dist[0] * vect_dist[0]);
                         const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
 
-                        //const auto &cell_2 = GridTools::get_active_child_cells<DoFHandler<dim>>(cell);
 
                         unsigned int v;
                         if (l<3)
@@ -807,26 +813,24 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                             }
                         }
 
-
-                        //const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler,second_point);
                         const auto &cell_2 = active_neighbors[cell_found];
                         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
 
                         cell_2->get_dof_indices(local_dof_indices_2);
 
                         unsigned int global_index_overrigth = local_dof_indices[l];
-                        for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
-                            system_matrix.set(global_index_overrigth, m, 0);
-                        /*for (unsigned int m = 0; m < sparsity_pattern.row_length(global_index_overrigth); m++){
-                            std::cout << "min cell dist: " << sparsity_pattern.block(1,1).row_position(global_index_overrigth,m) << std::endl;
-                            system_matrix.set(global_index_overrigth, sparsity_pattern.block(0,0).row_position(global_index_overrigth,m), 0);
-                        }*/
+
+                        for (unsigned int m = 0; m <active_neighbors.size(); m++){
+                            const auto &cell_3 = active_neighbors[m];
+                            cell_3->get_dof_indices(local_dof_indices_3);
+                            for (unsigned int o=0;o < local_dof_indices_2.size();++o)
+                                system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
+                        }
 
                         system_matrix.set(global_index_overrigth, global_index_overrigth,
                                           -2 / (dist * dist));
                         unsigned int n = k;
                         while (n < local_dof_indices_2.size()) {
-                            //td::cout << "index global of dof: " << local_dof_indices[j]<< std::endl;
                             system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
                                               fe.shape_value(n, second_point_v) / (dist * dist));
                             if (n < (dim + 1) * 4) {
@@ -908,19 +912,22 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                         }
 
 
-                        //const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler,second_point);
                         const auto &cell_2 = active_neighbors[cell_found];
                         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
                         cell_2->get_dof_indices(local_dof_indices_2);
 
                         unsigned int global_index_overrigth = local_dof_indices[l];
-                        for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
-                            system_matrix.set(global_index_overrigth, m, 0);
+                        for (unsigned int m = 0; m <active_neighbors.size(); m++){
+                            const auto &cell_3 = active_neighbors[m];
+                            cell_3->get_dof_indices(local_dof_indices_3);
+                            for (unsigned int o=0;o < local_dof_indices_2.size();++o)
+                                system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
+                        }
+
                         system_matrix.set(global_index_overrigth, global_index_overrigth,
                                           -2 / (dist * dist));
                         unsigned int n = k;
                         while (n < local_dof_indices_2.size()) {
-                            //td::cout << "index global of dof: " << local_dof_indices[j]<< std::endl;
                             system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
                                               fe.shape_value(n, second_point_v) / (dist * dist));
                             if (n < (dim + 1) * 4) {
@@ -971,6 +978,8 @@ void DirectSteadyNavierStokes<dim>::torque()
 
     MappingQ1<dim> immersed_map;
     std::vector<types::global_dof_index> local_dof_indices(fe.dofs_per_cell);
+    std::vector<types::global_dof_index> local_dof_indices_2(fe.dofs_per_cell);
+    std::vector<types::global_dof_index> local_dof_indices_3(fe.dofs_per_cell);
     unsigned int nb_evaluation=1000;
     double t_torque=0;
     double t_torque_l=0;
@@ -1058,6 +1067,39 @@ void DirectSteadyNavierStokes<dim>::torque()
             P+=fe.shape_value(j,second_point_v)*present_solution(local_dof_indices[j]);
         }
 
+        fx_p+=P*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+        fy_p+=P*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+
+    }
+    std::cout << "fx_P: " << fx_p << std::endl;
+    std::cout << "fy_P: " << fy_p << std::endl;
+    fx_p=0;
+    fy_p=0;
+    for (unsigned int i=0;i<nb_evaluation;++i ) {
+
+        const Point<2> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
+        const Point<2> eval_point_2(eval_point[0]+dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+dr*sin(i * 2 * PI / (nb_evaluation)));
+        const Point<2> eval_point_3(eval_point[0]+2*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+2*dr*sin(i * 2 * PI / (nb_evaluation)));
+        const Point<2> eval_point_4(eval_point[0]+3*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+3*dr*sin(i * 2 * PI / (nb_evaluation)));
+        const auto &cell = GridTools::find_active_cell_around_point(dof_handler, eval_point_2);
+        const auto &cell2 = GridTools::find_active_cell_around_point(dof_handler, eval_point_3);
+        const auto &cell3 = GridTools::find_active_cell_around_point(dof_handler, eval_point_4);
+
+        Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point_2);
+        Point<dim> second_point_v_2 = immersed_map.transform_real_to_unit_cell(cell2, eval_point_3);
+        Point<dim> second_point_v_3 = immersed_map.transform_real_to_unit_cell(cell3, eval_point_4);
+        cell->get_dof_indices(local_dof_indices);
+        cell2->get_dof_indices(local_dof_indices_2);
+        cell3->get_dof_indices(local_dof_indices_3);
+        double P_1=0;
+        double P_2=0;
+        double P_3=0;
+        for (unsigned int j=2;j<12;j=j+3 ){
+            P_1+=fe.shape_value(j,second_point_v)*present_solution(local_dof_indices[j]);
+            P_2+=fe.shape_value(j,second_point_v_2)*present_solution(local_dof_indices_2[j]);
+            P_3+=fe.shape_value(j,second_point_v_3)*present_solution(local_dof_indices_3[j]);
+        }
+        double P=P_1+(P_1-P_2)+((P_1-P_2)-(P_2-P_3));
         fx_p+=P*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
         fy_p+=P*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
 
