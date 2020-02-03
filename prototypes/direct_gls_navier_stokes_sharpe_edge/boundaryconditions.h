@@ -54,8 +54,11 @@ double PoiseuilleInlet<dim>::value (const Point<dim> &p,
 {
     Assert (component < this->n_components,
             ExcIndexRange (component, 0, this->n_components));
-
     double y=p[1];
+
+    //if (dim==3)
+        //y=max(p[1],p[2]);
+
 
     if (component==0)
     {

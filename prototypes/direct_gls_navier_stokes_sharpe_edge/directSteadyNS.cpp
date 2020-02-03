@@ -102,7 +102,7 @@ private:
     void initialize_system();
     void torque();
 
-    void define_neighbors();
+    void vertices_cell_mapping();
 
     void assemble(const bool initial_step,
                    const bool assemble_matrix);
@@ -149,6 +149,7 @@ private:
     Vector<double> immersed_x;
     Vector<double> immersed_y;
     Vector<double> immersed_value;
+    std::vector<std::vector<typename DoFHandler<dim>::active_cell_iterator>> vertices_to_cell;
 
 
     const SimulationCases simulationCase_=MMS;
@@ -181,10 +182,21 @@ template <int dim>
 void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 {
     TimerOutput::Scope timer_section(monitor, "make_cube_grid");
-    const Point<2> P1(-1,-1);
-    const Point<2> P2(2,1);
+    const Point<dim> P1;
+    const Point<dim> P2;
+    if (dim==2){
+        const Point<dim> P1(-1,-1);
+        const Point<dim> P2(2,1)  ;
+        GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
+    }
+    else if (dim==3){
+        const Point<dim> P1(-1,-1,-1);
+        const Point<dim> P2(2,1,1)  ;
+        GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
+    }
+    ;
   //GridGenerator::hyper_cube (triangulation, -1, 1);
-    GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
+
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
   triangulation.refine_global (5 );
@@ -196,6 +208,30 @@ void DirectSteadyNavierStokes<dim>::refine_grid()
     triangulation.refine_global(1);
 }
 
+template <int dim>
+void DirectSteadyNavierStokes<dim>::vertices_cell_mapping()
+{
+    std::cout << "vertice_to_cell:start ... "<< std::endl;
+    TimerOutput::Scope timer_section(monitor, "vertice_cell_mapping");
+    vertices_to_cell.clear();
+    vertices_to_cell.resize(dof_handler.n_dofs()/(dim+1));
+    //for(unsigned int i=0;i<dof_handler.n_dofs()/(dim+1);++i){
+      //  vertices_to_cell[i]=GridTools::find_cells_adjacent_to_vertex(dof_handler,i);
+   // }
+    const auto &cell_iterator=dof_handler.active_cell_iterators();
+    for (const auto &cell : cell_iterator)  {
+        unsigned int vertices_per_cell=GeometryInfo<dim>::vertices_per_cell;
+        for (unsigned int i=0;i<vertices_per_cell;i++) {
+            unsigned int v_index = cell->vertex_index(i);
+            std::vector<typename DoFHandler<dim>::active_cell_iterator> adjacent=vertices_to_cell[v_index];
+            std::set<typename DoFHandler<dim>::active_cell_iterator> adjacent_2(adjacent.begin(),adjacent.end());
+            adjacent_2.insert(cell);
+            std::vector<typename DoFHandler<dim>::active_cell_iterator> adjacent_3(adjacent_2.begin(),adjacent_2.end());
+            vertices_to_cell[v_index]=adjacent_3;
+        }
+    }
+    std::cout << "vertices_to_cell: done "<< std::endl;
+}
 
 template <int dim>
 void DirectSteadyNavierStokes<dim>::setup_dofs ()
@@ -224,6 +260,11 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
                                                  fe.component_mask(velocities));
         VectorTools::interpolate_boundary_values(dof_handler, 3, ZeroFunction<dim>(dim+1), nonzero_constraints,
                                                  fe.component_mask(velocities));
+        if (dim==3){
+        VectorTools::interpolate_boundary_values(dof_handler, 4, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                 fe.component_mask(velocities));
+        VectorTools::interpolate_boundary_values(dof_handler, 5, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                 fe.component_mask(velocities));}
 
       if (simulationCase_==TaylorCouette)
       {
@@ -254,6 +295,20 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
                                                  ZeroFunction<dim>(dim+1),
                                                  zero_constraints,
                                                  fe.component_mask(velocities));
+        if (dim==3){
+            VectorTools::interpolate_boundary_values(dof_handler,
+                                                     4,
+                                                     ZeroFunction<dim>(dim+1),
+                                                     zero_constraints,
+                                                     fe.component_mask(velocities));
+            VectorTools::interpolate_boundary_values(dof_handler,
+                                                     5,
+                                                     ZeroFunction<dim>(dim+1),
+                                                     zero_constraints,
+                                                     fe.component_mask(velocities));
+
+        }
+
 
 
       if (simulationCase_==TaylorCouette )
@@ -672,7 +727,7 @@ void DirectSteadyNavierStokes<dim>::refine_mesh ()
                                         fe.component_mask(velocity));
     GridRefinement::refine_and_coarsen_fixed_number (triangulation,
                                                      estimated_error_per_cell,
-                                                     0.2, 0.0);
+                                                     0.25, 0.0);
     triangulation.prepare_coarsening_and_refinement();
     SolutionTransfer<dim, BlockVector<double> > solution_transfer(dof_handler);
     solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
@@ -702,15 +757,15 @@ void DirectSteadyNavierStokes<dim>::refine_mesh_uniform ()
 template <int dim>
 void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
     TimerOutput::Scope timer_section(monitor, "sharp_edge");
-    unsigned int nb_immersed=10000;
-    immersed_x.reinit(nb_immersed);
-    immersed_y.reinit(nb_immersed);
-    immersed_value.reinit(nb_immersed);
     using numbers::PI;
     const double center_x=0;
     const double center_y=0;
+    const Point<dim> center_immersed;
+    if (dim==2)
+        const Point<dim> center_immersed(center_x,center_y);
+    else if (dim==3)
+        const Point<dim> center_immersed(center_x,center_y,center_x);
 
-    const Point<2> center_immersed(center_x,center_y);
     std::vector<typename DoFHandler<dim>::active_cell_iterator> active_neighbors;
     //on<dim> neighbors;
     // overwrite the line for the point in mesh
@@ -724,14 +779,14 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
     // we need to define what part of the finite elements we need to compute in orther to solve the equation we want
     // in or case wee need the gradient of the shape function the jacobians of the matrix and the shape function values
     FEValues<dim> fe_values(fe, q_formula,update_quadrature_points);
-    FEValues<dim> fe_values_2(fe, q_formula,update_quadrature_points);
-    const unsigned int n_q_points = q_formula.size();
+    //FEValues<dim> fe_values_2(fe, q_formula,update_quadrature_points);
+    //const unsigned int n_q_points = q_formula.size();
     const unsigned int dofs_per_cell = fe.dofs_per_cell;
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_2(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_3(dofs_per_cell);
     Vector<double> vertex_index;
-    unsigned int best_vertex = 0;
+    //unsigned int best_vertex = 0;
 
     std::vector<Point<dim>> support_point(dof_handler.n_dofs());
     const auto &cell_iterator=dof_handler.active_cell_iterators();
@@ -739,15 +794,9 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
 
     double min_cell_d=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
     std::cout << "min cell dist: " << min_cell_d << std::endl;
-    unsigned int bridge_gros = 1;
-    unsigned int bridge_petit = 1;
-    if (pressure_link==false) {
-        bridge_gros = 1;
-        bridge_petit = 1;
-    }
+
 
     for (const auto &cell : cell_iterator)  {
-
         fe_values.reinit(cell);
         cell->get_dof_indices(local_dof_indices);
         unsigned int count_small=0;
@@ -760,9 +809,6 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
             if ((support_points[local_dof_indices[j]]-center_immersed).norm()<=radius_2){
                 ++count_large;
             }
-
-
-
         }
 
         if (couette==false){
@@ -770,32 +816,22 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
         }
         if (count_small!=0 and count_small!=local_dof_indices.size()){
             //cellule coupe par boundary small
-            for (unsigned int k = 0; k< 3; ++k) {
-                if (k < 2) {
+            for (unsigned int k = 0; k< dim+1; ++k) {
+                if (k < dim) {
                     unsigned int l = k;
                     while (l < local_dof_indices.size()) {
-                        Tensor<1, 2, double> vect_dist = (support_points[local_dof_indices[l]] - radius *
+                        Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] - radius *
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed) /
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed).norm());
 
-                        double dist = sqrt(vect_dist[1] * vect_dist[1] + vect_dist[0] * vect_dist[0]);
+                        double dist = vect_dist.norm();
                         const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
-
-
-                        unsigned int v;
-                        if (l<3)
-                            v=0;
-                        else if (l<6)
-                            v=1;
-                        else if (l<9)
-                            v=2;
-                        else if (l<12)
-                            v=3;
-
+                        unsigned int v=floor(l/(dim+1));
                         unsigned int v_index= cell->vertex_index(v);
-                        active_neighbors=GridTools::find_cells_adjacent_to_vertex(dof_handler,v_index);
+                        //active_neighbors=GridTools::find_cells_adjacent_to_vertex(dof_handler,v_index);
+                        active_neighbors=vertices_to_cell[v_index];
                         unsigned int cell_found=0;
                         unsigned int n_active_cells= active_neighbors.size();
 
@@ -803,8 +839,8 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                             try {
                                 const auto &cell_3=active_neighbors[cell_index];
                                 const Point<dim> p_cell = immersed_map.transform_real_to_unit_cell(active_neighbors[cell_index], second_point);
-                                const double dist = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
-                                if (dist == 0) {
+                                const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+                                if (dist_2 == 0) {
                                     cell_found=cell_index;
                                     break;
                                 }
@@ -812,7 +848,6 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                             catch (typename MappingQGeneric<dim>::ExcTransformationFailed ){
                             }
                         }
-
                         const auto &cell_2 = active_neighbors[cell_found];
                         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
 
@@ -839,6 +874,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
                                 n = n + dim;
                             }
                         }
+
                         if (couette==true)
                         {
 
@@ -871,29 +907,22 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
 
         if (count_large!=0 and count_large!=local_dof_indices.size()){
             //cellule coupe par boundary large
-            for (unsigned int k = 0; k< 3; ++k) {
+            for (unsigned int k = 0; k< dim+1; ++k) {
                 if (k < 2) {
                     unsigned int l = k;
                     while (l < local_dof_indices.size()) {
-                        Tensor<1, 2, double> vect_dist = (support_points[local_dof_indices[l]] - radius_2 *
+                        Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] - radius_2 *
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed) /
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed).norm());
-                        double dist = sqrt(vect_dist[1] * vect_dist[1] + vect_dist[0] * vect_dist[0]);
+                        double dist = vect_dist.norm();
                         const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
-                        unsigned int v;
-                        if (l<3)
-                            v=0;
-                        else if (l<6)
-                            v=1;
-                        else if (l<9)
-                            v=2;
-                        else if (l<12)
-                            v=3;
+                        unsigned int v=floor(l/(dim+1));
 
                         unsigned int v_index= cell->vertex_index(v);
-                        active_neighbors=GridTools::find_cells_adjacent_to_vertex(dof_handler,v_index);
+                        //active_neighbors=GridTools::find_cells_adjacent_to_vertex(dof_handler,v_index);
+                        active_neighbors=vertices_to_cell[v_index];
                         unsigned int cell_found=0;
                         unsigned int n_active_cells= active_neighbors.size();
 
@@ -955,10 +984,10 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2() {
             }
         }
     }
-    for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
+    /*for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
         system_matrix.set(dof_handler.n_dofs()-1, m, 0);
     system_matrix.set(dof_handler.n_dofs()-1,dof_handler.n_dofs()-1,1/(min_cell_d*min_cell_d));
-    system_rhs(dof_handler.n_dofs()-1)=0;
+    system_rhs(dof_handler.n_dofs()-1)=0;*/
 
 }
 template<int dim>
@@ -998,7 +1027,7 @@ void DirectSteadyNavierStokes<dim>::torque()
     double T_in=0;
     double dr=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
     for (unsigned int i=0;i<nb_evaluation;++i ) {
-        const Point<2> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
+        const Point<dim> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
         const auto &cell = GridTools::find_active_cell_around_point(dof_handler, eval_point);
         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point);
         cell->get_dof_indices(local_dof_indices);
@@ -1008,7 +1037,7 @@ void DirectSteadyNavierStokes<dim>::torque()
         v_1=cos(i * 2 * PI / (nb_evaluation));
         double U1=u_1*cos(i * 2 * PI / (nb_evaluation)-PI/2)+v_1*sin(i * 2 * PI / (nb_evaluation)-PI/2);
 
-        const Point<2> eval_point_2(eval_point[0]+dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+dr*sin(i * 2 * PI / (nb_evaluation)));
+        const Point<dim> eval_point_2(eval_point[0]+dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+dr*sin(i * 2 * PI / (nb_evaluation)));
         const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler, eval_point_2);
         second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, eval_point_2);
         cell_2->get_dof_indices(local_dof_indices);
@@ -1030,7 +1059,7 @@ void DirectSteadyNavierStokes<dim>::torque()
     std::cout << "total_torque_small " << t_torque << std::endl;
 
     for (unsigned int i=0;i<nb_evaluation;++i ) {
-        const Point<2> eval_point(radius_2 * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius_2 * sin(i * 2 * PI / (nb_evaluation)) + center_y);
+        const Point<dim> eval_point(radius_2 * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius_2 * sin(i * 2 * PI / (nb_evaluation)) + center_y);
         const auto &cell = GridTools::find_active_cell_around_point(dof_handler, eval_point);
         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point);
         cell->get_dof_indices(local_dof_indices);
@@ -1043,7 +1072,7 @@ void DirectSteadyNavierStokes<dim>::torque()
         u_1=0;
         v_1=0;
         double U1=u_1*cos(i * 2 * PI / (nb_evaluation)-PI/2)+v_1*sin(i * 2 * PI / (nb_evaluation)-PI/2);
-        const Point<2> eval_point_2(eval_point[0]-dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]-dr*sin(i * 2 * PI / (nb_evaluation)));
+        const Point<dim> eval_point_2(eval_point[0]-dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]-dr*sin(i * 2 * PI / (nb_evaluation)));
         const auto &cell_2 = GridTools::find_active_cell_around_point(dof_handler, eval_point_2);
         second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, eval_point_2);
         cell_2->get_dof_indices(local_dof_indices);
@@ -1064,7 +1093,7 @@ void DirectSteadyNavierStokes<dim>::torque()
 
     //pressure force evaluation
     for (unsigned int i=0;i<nb_evaluation;++i ) {
-        const Point<2> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
+        const Point<dim> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
         const auto &cell = GridTools::find_active_cell_around_point(dof_handler, eval_point);
         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point);
         cell->get_dof_indices(local_dof_indices);
@@ -1087,10 +1116,10 @@ void DirectSteadyNavierStokes<dim>::torque()
     fy_p_2=0;
     for (unsigned int i=0;i<nb_evaluation;++i ) {
 
-        const Point<2> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
-        const Point<2> eval_point_2(eval_point[0]+1*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+1*dr*sin(i * 2 * PI / (nb_evaluation)));
-        const Point<2> eval_point_3(eval_point[0]+2*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+2*dr*sin(i * 2 * PI / (nb_evaluation)));
-        const Point<2> eval_point_4(eval_point[0]+3*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+3*dr*sin(i * 2 * PI / (nb_evaluation)));
+        const Point<dim> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
+        const Point<dim> eval_point_2(eval_point[0]+1*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+1*dr*sin(i * 2 * PI / (nb_evaluation)));
+        const Point<dim> eval_point_3(eval_point[0]+2*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+2*dr*sin(i * 2 * PI / (nb_evaluation)));
+        const Point<dim> eval_point_4(eval_point[0]+3*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+3*dr*sin(i * 2 * PI / (nb_evaluation)));
         const auto &cell = GridTools::find_active_cell_around_point(dof_handler, eval_point_2);
         const auto &cell2 = GridTools::find_active_cell_around_point(dof_handler, eval_point_3);
         const auto &cell3 = GridTools::find_active_cell_around_point(dof_handler, eval_point_4);
@@ -1110,8 +1139,8 @@ void DirectSteadyNavierStokes<dim>::torque()
             P_3+=fe.shape_value(j,second_point_v_3)*present_solution(local_dof_indices_3[j]);
         }
         double P2_temp=P_1+(P_1-P_2)+((P_1-P_2)-(P_2-P_3));
-        double P2=P2_temp+(P2_temp-P_1)+((P2_temp-P_1)-(P_1-P_2));
-        double P=P_1+(P_1-P_2)*2;
+        double P2=P2_temp;//+(P2_temp-P_1)+((P2_temp-P_1)-(P_1-P_2));
+        double P=P_1+(P_1-P_2)*1;
         double P3=P_1;
         fx_p_2+=P2*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
         fy_p_2+=P2*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
@@ -1151,6 +1180,7 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               initialize_system();
               evaluation_point = present_solution;
               assemble_system(first_step);
+              vertices_cell_mapping();
               sharp_edge_V2();
               current_res = system_rhs.l2_norm();
               //std::cout  << "Newton iteration: " << outer_iteration << "  - Residual:  " << current_res << std::endl;
@@ -1327,13 +1357,13 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     std::cout  << "reynolds for the cylinder : " << speed*radius*2/viscosity_<< std::endl;
 
 //    compute_initial_guess();
-    for (unsigned int cycle =0; cycle < 6 ; cycle++)
+    for (unsigned int cycle =0; cycle < 1 ; cycle++)
     {
         if (cycle !=0) refine_mesh();
         std::cout  << "cycle: " << cycle << std::endl;
-        newton_iteration(1.e-6, 10, true, true);
+        newton_iteration(1.e-6, 1+cycle, true, true);
         output_results (cycle);
-        torque();
+        //torque();
         //calculateL2Error();
 
     }
@@ -1415,7 +1445,7 @@ int main ()
 {
     try
     {
-        DirectSteadyNavierStokes<2> problem_2d(1,1);
+        DirectSteadyNavierStokes<3> problem_2d(1,1);
         //problem_2d.runCouette();
         problem_2d.runMMS();
     }
