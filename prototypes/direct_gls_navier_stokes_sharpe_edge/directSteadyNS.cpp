@@ -187,7 +187,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
     GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (7);
+  triangulation.refine_global (5 );
 }
 
 template <int dim>
@@ -672,7 +672,7 @@ void DirectSteadyNavierStokes<dim>::refine_mesh ()
                                         fe.component_mask(velocity));
     GridRefinement::refine_and_coarsen_fixed_number (triangulation,
                                                      estimated_error_per_cell,
-                                                     0.15, 0.0);
+                                                     0.2, 0.0);
     triangulation.prepare_coarsening_and_refinement();
     SolutionTransfer<dim, BlockVector<double> > solution_transfer(dof_handler);
     solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
@@ -980,7 +980,7 @@ void DirectSteadyNavierStokes<dim>::torque()
     std::vector<types::global_dof_index> local_dof_indices(fe.dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_2(fe.dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_3(fe.dofs_per_cell);
-    unsigned int nb_evaluation=1000;
+    unsigned int nb_evaluation=100;
     double t_torque=0;
     double t_torque_l=0;
     double fx_v=0;
@@ -988,6 +988,8 @@ void DirectSteadyNavierStokes<dim>::torque()
 
     double fx_p=0;
     double fy_p=0;
+    double fx_p_0=0;
+    double fy_p_0=0;
     double fx_p_1=0;
     double fy_p_1=0;
     double fx_p_2=0;
@@ -1077,6 +1079,8 @@ void DirectSteadyNavierStokes<dim>::torque()
     }
     std::cout << "fx_P: " << fx_p << std::endl;
     std::cout << "fy_P: " << fy_p << std::endl;
+    fx_p_0=0;
+    fy_p_0=0;
     fx_p_1=0;
     fy_p_1=0;
     fx_p_2=0;
@@ -1084,7 +1088,7 @@ void DirectSteadyNavierStokes<dim>::torque()
     for (unsigned int i=0;i<nb_evaluation;++i ) {
 
         const Point<2> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
-        const Point<2> eval_point_2(eval_point[0]+dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+dr*sin(i * 2 * PI / (nb_evaluation)));
+        const Point<2> eval_point_2(eval_point[0]+1*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+1*dr*sin(i * 2 * PI / (nb_evaluation)));
         const Point<2> eval_point_3(eval_point[0]+2*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+2*dr*sin(i * 2 * PI / (nb_evaluation)));
         const Point<2> eval_point_4(eval_point[0]+3*dr*cos(i * 2 * PI / (nb_evaluation)),eval_point[1]+3*dr*sin(i * 2 * PI / (nb_evaluation)));
         const auto &cell = GridTools::find_active_cell_around_point(dof_handler, eval_point_2);
@@ -1105,14 +1109,20 @@ void DirectSteadyNavierStokes<dim>::torque()
             P_2+=fe.shape_value(j,second_point_v_2)*present_solution(local_dof_indices_2[j]);
             P_3+=fe.shape_value(j,second_point_v_3)*present_solution(local_dof_indices_3[j]);
         }
-        double P2=P_1+(P_1-P_2)+((P_1-P_2)-(P_2-P_3));
-        double P=P_1+(P_1-P_2);
+        double P2_temp=P_1+(P_1-P_2)+((P_1-P_2)-(P_2-P_3));
+        double P2=P2_temp+(P2_temp-P_1)+((P2_temp-P_1)-(P_1-P_2));
+        double P=P_1+(P_1-P_2)*2;
+        double P3=P_1;
         fx_p_2+=P2*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
         fy_p_2+=P2*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
         fx_p_1+=P*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
         fy_p_1+=P*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+        fx_p_0+=P3*-cos(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
+        fy_p_0+=P3*-sin(i * 2 * PI / (nb_evaluation))*2*PI*radius/(nb_evaluation-1) ;
 
     }
+    std::cout << "ordre 0 fx_P: " << fx_p_0 << std::endl;
+    std::cout << "ordre 0 fy_P: " << fy_p_0 << std::endl;
     std::cout << "ordre 1 fx_P: " << fx_p_1 << std::endl;
     std::cout << "ordre 1 fy_P: " << fy_p_1 << std::endl;
     std::cout << "ordre 2 fx_P: " << fx_p_2 << std::endl;
@@ -1317,13 +1327,14 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     std::cout  << "reynolds for the cylinder : " << speed*radius*2/viscosity_<< std::endl;
 
 //    compute_initial_guess();
-    for (unsigned int cycle =0; cycle < 1 ; cycle++)
+    for (unsigned int cycle =0; cycle < 6 ; cycle++)
     {
-        if (cycle !=0) refine_mesh_uniform();
+        if (cycle !=0) refine_mesh();
+        std::cout  << "cycle: " << cycle << std::endl;
         newton_iteration(1.e-6, 10, true, true);
         output_results (cycle);
         torque();
-        calculateL2Error();
+        //calculateL2Error();
 
     }
     std::ofstream output_file("./L2Error.dat");
@@ -1383,9 +1394,10 @@ void DirectSteadyNavierStokes<dim>::runCouette_sharp()
 
 
 //    compute_initial_guess();6
-    for (unsigned int cycle =0; cycle < 4 ; cycle++)
+    for (unsigned int cycle =0; cycle < 2 ; cycle++)
     {
-        if (cycle !=0) refine_mesh_uniform();
+        if (cycle !=0) refine_mesh();
+        std::cout  << "cycle : " << 1 << std::endl;
         newton_iteration(1.e-6, 5, true, true);
         output_results (cycle);
         calculateL2Error();
