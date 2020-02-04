@@ -29,13 +29,17 @@
 #include <deal.II/lac/sparse_matrix.h>
 #include <deal.II/lac/dynamic_sparsity_pattern.h>
 #include <deal.II/lac/block_sparse_matrix.h>
-#include <deal.II/lac/solver_cg.h>
-#include <deal.II/lac/solver_bicgstab.h>
-#include <deal.II/lac/solver_gmres.h>
+
 #include <deal.II/lac/precondition.h>
 #include <deal.II/lac/sparse_ilu.h>
 #include <deal.II/lac/affine_constraints.h>
 #include <deal.II/lac/sparse_direct.h>
+
+#include <deal.II/lac/solver_cg.h>
+#include <deal.II/lac/solver_bicgstab.h>
+#include <deal.II/lac/solver_gmres.h>
+#include <deal.II/lac/solver_minres.h>
+#include <deal.II/lac/solver_fire.h>
 
 #include <deal.II/grid/tria.h>
 #include <deal.II/grid/grid_generator.h>
@@ -55,12 +59,19 @@
 #include <deal.II/fe/fe_system.h>
 #include <deal.II/fe/fe_values.h>
 #include <deal.II/fe/fe_q.h>
-
+#include <deal.II/lac/solver_gmres.h>
 #include <deal.II/numerics/vector_tools.h>
 #include <deal.II/numerics/matrix_tools.h>
 #include <deal.II/numerics/data_out.h>
 #include <deal.II/numerics/error_estimator.h>
 #include <deal.II/numerics/solution_transfer.h>
+
+
+#include <deal.II/lac/trilinos_parallel_block_vector.h>
+#include <deal.II/lac/trilinos_precondition.h>
+#include <deal.II/lac/trilinos_solver.h>
+#include <deal.II/lac/trilinos_sparse_matrix.h>
+#include <deal.II/lac/trilinos_vector.h>
 
 #include <deal.II/grid/grid_tools.h>
 
@@ -136,14 +147,15 @@ private:
     AffineConstraints<double>    zero_constraints;
     AffineConstraints<double>    nonzero_constraints;
 
-    BlockSparsityPattern         sparsity_pattern;
-    BlockSparseMatrix<double>    system_matrix;
+    SparsityPattern         sparsity_pattern;
+    SparseMatrix<double>    system_matrix;
 
-    BlockVector<double>          present_solution;
-    BlockVector<double>          newton_update;
-    BlockVector<double>          system_rhs;
-    BlockVector<double>          evaluation_point;
-    BlockVector<double>          last_vect;
+
+    Vector<double>          present_solution;
+    Vector<double>          newton_update;
+    Vector<double>          system_rhs;
+    Vector<double>          evaluation_point;
+    Vector<double>          last_vect;
 
 
     Vector<double> immersed_x;
@@ -199,7 +211,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (4);
+  triangulation.refine_global (7);
 }
 
 template <int dim>
@@ -254,16 +266,16 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
       nonzero_constraints.clear();
 
       DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
-      VectorTools::interpolate_boundary_values(dof_handler, 0, PoiseuilleInlet<dim>(), nonzero_constraints,
+      VectorTools::interpolate_boundary_values(dof_handler, 0, Uniform_Inlet<dim>(), nonzero_constraints,
                                                fe.component_mask(velocities));
-        VectorTools::interpolate_boundary_values(dof_handler, 2, ZeroFunction<dim>(dim+1), nonzero_constraints,
+        VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
                                                  fe.component_mask(velocities));
-        VectorTools::interpolate_boundary_values(dof_handler, 3, ZeroFunction<dim>(dim+1), nonzero_constraints,
+        VectorTools::interpolate_boundary_values(dof_handler, 3, Symetrics_Wall<dim>(), nonzero_constraints,
                                                  fe.component_mask(velocities));
         if (dim==3){
-        VectorTools::interpolate_boundary_values(dof_handler, 4, ZeroFunction<dim>(dim+1), nonzero_constraints,
+        VectorTools::interpolate_boundary_values(dof_handler, 4, Symetrics_Wall<dim>(), nonzero_constraints,
                                                  fe.component_mask(velocities));
-        VectorTools::interpolate_boundary_values(dof_handler, 5, ZeroFunction<dim>(dim+1), nonzero_constraints,
+        VectorTools::interpolate_boundary_values(dof_handler, 5, Symetrics_Wall<dim>(), nonzero_constraints,
                                                  fe.component_mask(velocities));}
 
       if (simulationCase_==TaylorCouette)
@@ -354,14 +366,14 @@ void DirectSteadyNavierStokes<dim>::initialize_system()
 {
     TimerOutput::Scope timer_section(monitor, "initialize");
   {
-    BlockDynamicSparsityPattern dsp (dofs_per_block, dofs_per_block);
+    DynamicSparsityPattern dsp (dof_handler.n_dofs());
     DoFTools::make_flux_sparsity_pattern (dof_handler, dsp, nonzero_constraints);
     sparsity_pattern.copy_from (dsp);
   }
   system_matrix.reinit (sparsity_pattern);
-  present_solution.reinit (dofs_per_block);
-  newton_update.reinit (dofs_per_block);
-  system_rhs.reinit (dofs_per_block);
+  present_solution.reinit (dof_handler.n_dofs());
+  newton_update.reinit (dof_handler.n_dofs());
+  system_rhs.reinit (dof_handler.n_dofs());
 }
 
 // dns
@@ -712,6 +724,16 @@ void DirectSteadyNavierStokes<dim>::solve (const bool initial_step)
   direct.initialize(system_matrix);
   direct.vmult(newton_update,system_rhs);
   constraints_used.distribute(newton_update);
+
+  /*SolverControl solver_control(1000, 1e-12,true,true);
+  solver_control.log_frequency(1);
+  SolverGMRES<>    solver(solver_control);
+  SparseILU<double> preconditioner;
+
+  //SparseILU<double> preconditioner;
+  preconditioner.initialize(system_matrix);
+  solver.solve(system_matrix, newton_update, system_rhs,preconditioner);
+  constraints_used.distribute(newton_update);*/
 }
 
 template <int dim>
@@ -727,13 +749,13 @@ void DirectSteadyNavierStokes<dim>::refine_mesh ()
                                         fe.component_mask(velocity));
     GridRefinement::refine_and_coarsen_fixed_number (triangulation,
                                                      estimated_error_per_cell,
-                                                     0.1, 0.0);
+                                                     0.2, 0.0);
     triangulation.prepare_coarsening_and_refinement();
-    SolutionTransfer<dim, BlockVector<double> > solution_transfer(dof_handler);
+    SolutionTransfer<dim, Vector<double> > solution_transfer(dof_handler);
     solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
     triangulation.execute_coarsening_and_refinement ();
     setup_dofs();
-    BlockVector<double> tmp (dofs_per_block);
+    Vector<double> tmp (dof_handler.n_dofs());
     solution_transfer.interpolate(present_solution, tmp);
     nonzero_constraints.distribute(tmp);
     initialize_system();
@@ -1026,6 +1048,7 @@ void DirectSteadyNavierStokes<dim>::torque()
 
     double T_in=0;
     double dr=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
+    dr=dr*2;
     for (unsigned int i=0;i<nb_evaluation;++i ) {
         const Point<dim> eval_point(radius * cos(i * 2 * PI / (nb_evaluation)) + center_x,radius * sin(i * 2 * PI / (nb_evaluation)) + center_y);
         const auto &cell = GridTools::find_active_cell_around_point(dof_handler, eval_point);
@@ -1346,8 +1369,8 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     make_cube_grid(initialSize_);
     exact_solution = new ExactSolutionMMS<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=0.05;
-    radius=0.21;
+    viscosity_=0.05/6;
+    radius=0.025;
     radius_2=0.91;
     speed=1;
     couette=false;
@@ -1357,13 +1380,13 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     std::cout  << "reynolds for the cylinder : " << speed*radius*2/viscosity_<< std::endl;
 
 //    compute_initial_guess();
-    for (unsigned int cycle =0; cycle < 3 ; cycle++)
+    for (unsigned int cycle =0; cycle < 7 ; cycle++)
     {
         if (cycle !=0) refine_mesh();
         std::cout  << "cycle: " << cycle << std::endl;
-        newton_iteration(1.e-6, 1, true, true);
+        newton_iteration(1.e-6, 10, true, true);
         output_results (cycle);
-        //torque();
+        torque();
         //calculateL2Error();
 
     }
@@ -1445,7 +1468,7 @@ int main ()
 {
     try
     {
-        DirectSteadyNavierStokes<3> problem_2d(1,1);
+        DirectSteadyNavierStokes<2> problem_2d(1,1);
         //problem_2d.runCouette();
         problem_2d.runMMS();
     }

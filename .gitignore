@@ -58,6 +58,7 @@ build/*
 prototypes/step-60-V2/cmake-build-debug/*
 prototypes/direct_steadyNS_sharpe_edge/cmake-build-debug/*
 prototypes/direct_gls_navier_stokes_sharpe_edge/cmake-build-debug/*
+prototypes/direct_gls_navier_stokes_sharpe_edge/build/*
 prototypes/direct_gls_navier_stokes_sharpe_edge/.idea/*
 prototypes/direct_steadyNS/cmake-build-debug/*
 prototypes/Sharp_edge/build/*

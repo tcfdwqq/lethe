@@ -48,6 +48,7 @@ private:
 };
 
 
+
 template <int dim>
 double PoiseuilleInlet<dim>::value (const Point<dim> &p,
                                     const unsigned int component) const
@@ -69,6 +70,89 @@ double PoiseuilleInlet<dim>::value (const Point<dim> &p,
     return 0.;
 }
 
+template <int dim>
+class Symetrics_Wall : public Function<dim>
+{
+public:
+    Symetrics_Wall () : Function<dim>(dim+1)
+    {
+        y2_=1.;
+        y1_=-1.;
+        dy_= 0.5*(y2_ + y1_);
+        vmax_=1.;
+    };
+
+    virtual double value (const Point<dim>   &p,
+                          const unsigned int  component ) const;
+private:
+    double y2_;
+    double y1_;
+    double dy_;
+    double vmax_;
+};
+
+template <int dim>
+double Symetrics_Wall <dim>::value (const Point<dim> &p,
+                                    const unsigned int component) const
+{
+    Assert (component < this->n_components,
+            ExcIndexRange (component, 0, this->n_components));
+    double y=p[1];
+
+    if (dim==3)
+        y=std::max(std::abs(p[1]),std::abs(p[2]));
+
+
+    if (component==0)
+    {
+        return vmax_;
+    }
+    else if(component==1)
+        return 0.;
+    return 0.;
+}
+
+template <int dim>
+class Uniform_Inlet : public Function<dim>
+{
+public:
+    Uniform_Inlet () : Function<dim>(dim+1)
+    {
+        y2_=1.;
+        y1_=-1.;
+        dy_= 0.5*(y2_ + y1_);
+        vmax_=1.;
+    };
+
+    virtual double value (const Point<dim>   &p,
+                          const unsigned int  component ) const;
+private:
+    double y2_;
+    double y1_;
+    double dy_;
+    double vmax_;
+};
+
+template <int dim>
+double Uniform_Inlet <dim>::value (const Point<dim> &p,
+                                    const unsigned int component) const
+{
+    Assert (component < this->n_components,
+            ExcIndexRange (component, 0, this->n_components));
+    double y=p[1];
+
+    if (dim==3)
+        y=std::max(std::abs(p[1]),std::abs(p[2]));
+
+
+    if (component==0)
+    {
+        return vmax_;
+    }
+    else if(component==1)
+        return 0.;
+    return 0.;
+}
 
 template <int dim>
 class ConstantXInlet : public Function<dim>
