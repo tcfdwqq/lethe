@@ -197,9 +197,18 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
     const Point<dim> P1;
     const Point<dim> P2;
     if (dim==2){
-        const Point<dim> P1(-1,-1);
-        const Point<dim> P2(2,1)  ;
-        GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
+        if (couette== true){
+
+            const Point<dim> P1(-1,-1);
+            const Point<dim> P2(1,1)  ;
+            GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
+        }
+        else{
+
+            const Point<dim> P1(-1,-1);
+            const Point<dim> P2(2,1)  ;
+            GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
+        }
     }
     else if (dim==3){
         const Point<dim> P1(-1,-1,-1);
@@ -264,20 +273,33 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
     FEValuesExtractors::Vector velocities(0);
     {
       nonzero_constraints.clear();
+      if (couette==false) {
 
-      DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
-      VectorTools::interpolate_boundary_values(dof_handler, 0, Uniform_Inlet<dim>(), nonzero_constraints,
-                                               fe.component_mask(velocities));
-        VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
-                                                 fe.component_mask(velocities));
-        VectorTools::interpolate_boundary_values(dof_handler, 3, Symetrics_Wall<dim>(), nonzero_constraints,
-                                                 fe.component_mask(velocities));
-        if (dim==3){
-        VectorTools::interpolate_boundary_values(dof_handler, 4, Symetrics_Wall<dim>(), nonzero_constraints,
-                                                 fe.component_mask(velocities));
-        VectorTools::interpolate_boundary_values(dof_handler, 5, Symetrics_Wall<dim>(), nonzero_constraints,
-                                                 fe.component_mask(velocities));}
-
+          DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
+          VectorTools::interpolate_boundary_values(dof_handler, 0, Uniform_Inlet<dim>(), nonzero_constraints,
+                                                   fe.component_mask(velocities));
+          VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
+                                                   fe.component_mask(velocities));
+          VectorTools::interpolate_boundary_values(dof_handler, 3, Symetrics_Wall<dim>(), nonzero_constraints,
+                                                   fe.component_mask(velocities));
+          if (dim == 3) {
+              VectorTools::interpolate_boundary_values(dof_handler, 4, Symetrics_Wall<dim>(), nonzero_constraints,
+                                                       fe.component_mask(velocities));
+              VectorTools::interpolate_boundary_values(dof_handler, 5, Symetrics_Wall<dim>(), nonzero_constraints,
+                                                       fe.component_mask(velocities));
+          }
+      }
+      else{
+          DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
+          VectorTools::interpolate_boundary_values(dof_handler, 0, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                   fe.component_mask(velocities));
+          VectorTools::interpolate_boundary_values(dof_handler, 1, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                   fe.component_mask(velocities));
+          VectorTools::interpolate_boundary_values(dof_handler, 2, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                   fe.component_mask(velocities));
+          VectorTools::interpolate_boundary_values(dof_handler, 3, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                   fe.component_mask(velocities));
+      }
       if (simulationCase_==TaylorCouette)
       {
           VectorTools::interpolate_boundary_values(dof_handler,
@@ -1366,15 +1388,16 @@ void DirectSteadyNavierStokes<dim>::calculateL2Error()
 template<int dim>
 void DirectSteadyNavierStokes<dim>::runMMS()
 {
-    make_cube_grid(initialSize_);
+
     exact_solution = new ExactSolutionMMS<dim>;
     forcing_function = new NoForce<dim>;
     viscosity_=0.05/6;
-    radius=0.025;
+    radius=0.21;
     radius_2=0.91;
     speed=1;
-    couette=false;
+    couette= false;
     pressure_link=false;
+    make_cube_grid(initialSize_);
     setup_dofs();
 
     std::cout  << "reynolds for the cylinder : " << speed*radius*2/viscosity_<< std::endl;
