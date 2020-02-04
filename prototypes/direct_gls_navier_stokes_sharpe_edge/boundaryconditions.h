@@ -56,8 +56,8 @@ double PoiseuilleInlet<dim>::value (const Point<dim> &p,
             ExcIndexRange (component, 0, this->n_components));
     double y=p[1];
 
-    //if (dim==3)
-        //y=max(p[1],p[2]);
+    if (dim==3)
+        y=std::max(std::abs(p[1]),std::abs(p[2]));
 
 
     if (component==0)

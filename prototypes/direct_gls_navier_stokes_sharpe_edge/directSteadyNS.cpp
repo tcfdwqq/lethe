@@ -199,7 +199,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (5 );
+  triangulation.refine_global (4);
 }
 
 template <int dim>
@@ -613,7 +613,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                         //  fe_values.JxW(q);
 
                         // Jacobian is currently incomplete
-                        if (true)
+                        if (false)
                         {
                             local_matrix(i, j) +=
                                     tau *
@@ -658,7 +658,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                         -tau * (strong_residual * grad_phi_p[i]) * fe_values.JxW(q);
 
                 // SUPG GLS term
-                if (true)
+                if (false)
                 {
                     local_rhs(i) +=
                             -tau *
@@ -727,7 +727,7 @@ void DirectSteadyNavierStokes<dim>::refine_mesh ()
                                         fe.component_mask(velocity));
     GridRefinement::refine_and_coarsen_fixed_number (triangulation,
                                                      estimated_error_per_cell,
-                                                     0.25, 0.0);
+                                                     0.1, 0.0);
     triangulation.prepare_coarsening_and_refinement();
     SolutionTransfer<dim, BlockVector<double> > solution_transfer(dof_handler);
     solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
@@ -1346,7 +1346,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     make_cube_grid(initialSize_);
     exact_solution = new ExactSolutionMMS<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=0.005;
+    viscosity_=0.05;
     radius=0.21;
     radius_2=0.91;
     speed=1;
@@ -1357,11 +1357,11 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     std::cout  << "reynolds for the cylinder : " << speed*radius*2/viscosity_<< std::endl;
 
 //    compute_initial_guess();
-    for (unsigned int cycle =0; cycle < 1 ; cycle++)
+    for (unsigned int cycle =0; cycle < 3 ; cycle++)
     {
         if (cycle !=0) refine_mesh();
         std::cout  << "cycle: " << cycle << std::endl;
-        newton_iteration(1.e-6, 1+cycle, true, true);
+        newton_iteration(1.e-6, 1, true, true);
         output_results (cycle);
         //torque();
         //calculateL2Error();
@@ -1428,7 +1428,7 @@ void DirectSteadyNavierStokes<dim>::runCouette_sharp()
     {
         if (cycle !=0) refine_mesh();
         std::cout  << "cycle : " << 1 << std::endl;
-        newton_iteration(1.e-6, 5, true, true);
+        newton_iteration(1.e-6, 1, true, true);
         output_results (cycle);
         calculateL2Error();
 
