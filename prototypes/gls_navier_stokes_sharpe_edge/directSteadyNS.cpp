@@ -120,6 +120,7 @@ private:
     void assemble_system(const bool initial_step);
     void assemble_rhs(const bool initial_step);
     void solve(bool initial_step);
+    void solve_2(bool initial_step);
     void calculateL2Error();
     void output_results(const unsigned int cycle) const;
     void newton_iteration(const double tolerance,
@@ -147,15 +148,15 @@ private:
     AffineConstraints<double>    zero_constraints;
     AffineConstraints<double>    nonzero_constraints;
 
-    SparsityPattern         sparsity_pattern;
-    SparseMatrix<double>    system_matrix;
+    BlockSparsityPattern         sparsity_pattern;
+    BlockSparseMatrix<double>    system_matrix;
+    SparseMatrix<double>    pressure_mass_matrix;
 
-
-    Vector<double>          present_solution;
-    Vector<double>          newton_update;
-    Vector<double>          system_rhs;
-    Vector<double>          evaluation_point;
-    Vector<double>          last_vect;
+    BlockVector<double>          present_solution;
+    BlockVector<double>          newton_update;
+    BlockVector<double>          system_rhs;
+    BlockVector<double>          evaluation_point;
+    BlockVector<double>          last_vect;
 
 
     Vector<double> immersed_x;
@@ -173,7 +174,7 @@ private:
 };
 
 
-// Constructor
+
 template<int dim>
 DirectSteadyNavierStokes<dim>::DirectSteadyNavierStokes(const unsigned int degreeVelocity, const unsigned int degreePressure):
     viscosity_(1), degreeIntegration_(degreeVelocity),
@@ -181,7 +182,66 @@ DirectSteadyNavierStokes<dim>::DirectSteadyNavierStokes(const unsigned int degre
     dof_handler(triangulation),monitor(std::cout, TimerOutput::summary, TimerOutput::cpu_and_wall_times)
 {}
 
+template <class PreconditionerMp>
+class BlockSchurPreconditioner : public Subscriptor
+{
+public:
+    BlockSchurPreconditioner(double                           gamma,
+                             double                           viscosity,
+                             const BlockSparseMatrix<double> &S,
+                             const SparseMatrix<double> &     P,
+                             const PreconditionerMp &         Mppreconditioner);
+    void vmult(BlockVector<double> &dst, const BlockVector<double> &src) const;
+private:
+    const double                     gamma;
+    const double                     viscosity;
+    const BlockSparseMatrix<double> &stokes_matrix;
+    const SparseMatrix<double> &     pressure_mass_matrix;
+    const PreconditionerMp &         mp_preconditioner;
+    SparseDirectUMFPACK              A_inverse;
+};
 
+template <class PreconditionerMp>
+BlockSchurPreconditioner<PreconditionerMp>::BlockSchurPreconditioner(
+        double                           gamma,
+        double                           viscosity,
+        const BlockSparseMatrix<double> &S,
+        const SparseMatrix<double> &     P,
+        const PreconditionerMp &         Mppreconditioner)
+        : gamma(gamma)
+        , viscosity(viscosity)
+        , stokes_matrix(S)
+        , pressure_mass_matrix(P)
+        , mp_preconditioner(Mppreconditioner)
+{
+    A_inverse.initialize(stokes_matrix.block(0, 0));
+}
+
+template <class PreconditionerMp>
+void BlockSchurPreconditioner<PreconditionerMp>::vmult(
+        BlockVector<double> &      dst,
+        const BlockVector<double> &src) const
+{
+    Vector<double> utmp(src.block(0));
+    {
+        SolverControl solver_control(1000, 1e-6 * src.block(1).l2_norm());
+        SolverCG<>    cg(solver_control);
+        dst.block(1) = 0.0;
+        cg.solve(pressure_mass_matrix,
+                 dst.block(1),
+                 src.block(1),
+                 mp_preconditioner);
+        dst.block(1) *= -(viscosity + gamma);
+    }
+    {
+        stokes_matrix.block(0, 1).vmult(utmp, dst.block(1));
+        utmp *= -1.0;
+        utmp += src.block(0);
+    }
+    A_inverse.vmult(dst.block(0), utmp);
+}
+
+// Constructor
 template <int dim>
 DirectSteadyNavierStokes<dim>::~DirectSteadyNavierStokes ()
 {
@@ -259,7 +319,7 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
 {
     TimerOutput::Scope timer_section(monitor, "setup_dofs");
     system_matrix.clear();
-
+    pressure_mass_matrix.clear();
     dof_handler.distribute_dofs(fe);
 
     std::vector<unsigned int> block_component(dim+1, 0);
@@ -278,9 +338,9 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
           DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
           VectorTools::interpolate_boundary_values(dof_handler, 0, Uniform_Inlet<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
-          VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
+          VectorTools::interpolate_boundary_values(dof_handler, 2, ZeroFunction<dim>(dim+1), nonzero_constraints,
                                                    fe.component_mask(velocities));
-          VectorTools::interpolate_boundary_values(dof_handler, 3, Symetrics_Wall<dim>(), nonzero_constraints,
+          VectorTools::interpolate_boundary_values(dof_handler, 3, ZeroFunction<dim>(dim+1), nonzero_constraints,
                                                    fe.component_mask(velocities));
           if (dim == 3) {
               VectorTools::interpolate_boundary_values(dof_handler, 4, Symetrics_Wall<dim>(), nonzero_constraints,
@@ -293,8 +353,8 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
           DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
           VectorTools::interpolate_boundary_values(dof_handler, 0, ZeroFunction<dim>(dim+1), nonzero_constraints,
                                                    fe.component_mask(velocities));
-          //VectorTools::interpolate_boundary_values(dof_handler, 1, ZeroFunction<dim>(dim+1), nonzero_constraints,
-                                                   //fe.component_mask(velocities));
+          VectorTools::interpolate_boundary_values(dof_handler, 1, ZeroFunction<dim>(dim+1), nonzero_constraints,
+                                                   fe.component_mask(velocities));
           VectorTools::interpolate_boundary_values(dof_handler, 2, ZeroFunction<dim>(dim+1), nonzero_constraints,
                                                    fe.component_mask(velocities));
           VectorTools::interpolate_boundary_values(dof_handler, 3, ZeroFunction<dim>(dim+1), nonzero_constraints,
@@ -388,14 +448,14 @@ void DirectSteadyNavierStokes<dim>::initialize_system()
 {
     TimerOutput::Scope timer_section(monitor, "initialize");
   {
-    DynamicSparsityPattern dsp (dof_handler.n_dofs());
+    BlockDynamicSparsityPattern dsp (dofs_per_block,dofs_per_block);
     DoFTools::make_flux_sparsity_pattern (dof_handler, dsp, nonzero_constraints);
     sparsity_pattern.copy_from (dsp);
   }
   system_matrix.reinit (sparsity_pattern);
-  present_solution.reinit (dof_handler.n_dofs());
-  newton_update.reinit (dof_handler.n_dofs());
-  system_rhs.reinit (dof_handler.n_dofs());
+  present_solution.reinit (dofs_per_block);
+  newton_update.reinit (dofs_per_block);
+  system_rhs.reinit (dofs_per_block);
 }
 
 // dns
@@ -722,6 +782,20 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                                                         system_rhs);
         }
     }
+    if (assemble_matrix)
+    {
+        // Finally we move pressure mass matrix into a separate matrix:
+        pressure_mass_matrix.reinit(sparsity_pattern.block(1, 1));
+        pressure_mass_matrix.copy_from(system_matrix.block(1, 1));
+
+        // Note that settings this pressure block to zero is not identical to
+        // not assembling anything in this block, because this operation here
+        // will (incorrectly) delete diagonal entries that come in from
+        // hanging node constraints for pressure DoFs. This means that our
+        // whole system matrix will have rows that are completely
+        // zero. Luckily, FGMRES handles these rows without any problem.
+        system_matrix.block(1, 1) = 0;
+    }
 }
 
 
@@ -759,6 +833,28 @@ void DirectSteadyNavierStokes<dim>::solve (const bool initial_step)
 }
 
 template <int dim>
+void DirectSteadyNavierStokes<dim>::solve_2(const bool initial_step)
+{
+    const AffineConstraints<double> &constraints_used =
+            initial_step ? nonzero_constraints : zero_constraints;
+    SolverControl solver_control(system_matrix.m(),
+                                 1e-4 * system_rhs.l2_norm(),
+                                 true);
+    SolverFGMRES<BlockVector<double>> gmres(solver_control);
+    SparseILU<double>                 pmass_preconditioner;
+    pmass_preconditioner.initialize(pressure_mass_matrix,SparseILU<double>::AdditionalData());
+    const BlockSchurPreconditioner<SparseILU<double>> preconditioner(
+            1,
+            viscosity_,
+            system_matrix,
+            pressure_mass_matrix,
+            pmass_preconditioner);
+    gmres.solve(system_matrix, newton_update, system_rhs, preconditioner);
+    std::cout << "FGMRES steps: " << solver_control.last_step() << std::endl;
+    constraints_used.distribute(newton_update);
+}
+
+template <int dim>
 void DirectSteadyNavierStokes<dim>::refine_mesh ()
 {
     Vector<float> estimated_error_per_cell (triangulation.n_active_cells());
@@ -773,11 +869,11 @@ void DirectSteadyNavierStokes<dim>::refine_mesh ()
                                                      estimated_error_per_cell,
                                                      1, 0.0);
     triangulation.prepare_coarsening_and_refinement();
-    SolutionTransfer<dim, Vector<double> > solution_transfer(dof_handler);
+    SolutionTransfer<dim, BlockVector<double> > solution_transfer(dof_handler);
     solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
     triangulation.execute_coarsening_and_refinement ();
     setup_dofs();
-    Vector<double> tmp (dof_handler.n_dofs());
+    BlockVector<double> tmp (dofs_per_block);
     solution_transfer.interpolate(present_solution, tmp);
     nonzero_constraints.distribute(tmp);
     initialize_system();
@@ -1242,10 +1338,10 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               evaluation_point = present_solution;
               assemble_system(first_step);
               vertices_cell_mapping();
-              sharp_edge_V2(first_step);
+              //sharp_edge_V2(first_step);
               current_res = system_rhs.l2_norm();
               //std::cout  << "Newton iteration: " << outer_iteration << "  - Residual:  " << current_res << std::endl;
-              solve(first_step);
+              solve_2(first_step);
               present_solution = newton_update;
               nonzero_constraints.distribute(present_solution);
               first_step = false;
@@ -1262,8 +1358,8 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               std::cout  << "Newton iteration: " << outer_iteration << "  - Residual:  " << current_res << std::endl;
               evaluation_point = present_solution;
               assemble_system(first_step);
-              sharp_edge_V2(first_step);
-              solve(first_step);
+              //sharp_edge_V2(first_step);
+              solve_2(first_step);
               for (double alpha = 1.0; alpha > 1e-3; alpha *= 0)
                 {
                   evaluation_point = present_solution;
@@ -1411,7 +1507,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     radius=0.25;
     radius_2=0.91;
     speed=1;
-    couette= true;
+    couette= false;
     pressure_link=false;
     make_cube_grid(initialSize_);
     setup_dofs();
