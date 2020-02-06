@@ -266,7 +266,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
         else{
 
             const Point<dim> P1(-1,-1);
-            const Point<dim> P2(2,1)  ;
+            const Point<dim> P2(1,1)  ;
             GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
         }
     }
@@ -292,21 +292,24 @@ void DirectSteadyNavierStokes<dim>::refine_grid()
 template <int dim>
 void DirectSteadyNavierStokes<dim>::vertices_cell_mapping()
 {
+    //map the vertex index to the cell that include that vertex used later in which cell a point falls in
     std::cout << "vertice_to_cell:start ... "<< std::endl;
     TimerOutput::Scope timer_section(monitor, "vertice_cell_mapping");
+    //vertices_to_cell is a vector of vectof of dof handler active cell iterator each element i of the vector is a vector of all the cell in contact with the vertex i
     vertices_to_cell.clear();
     vertices_to_cell.resize(dof_handler.n_dofs()/(dim+1));
-    //for(unsigned int i=0;i<dof_handler.n_dofs()/(dim+1);++i){
-      //  vertices_to_cell[i]=GridTools::find_cells_adjacent_to_vertex(dof_handler,i);
-   // }
     const auto &cell_iterator=dof_handler.active_cell_iterators();
+    //loop on all the cell and
     for (const auto &cell : cell_iterator)  {
         unsigned int vertices_per_cell=GeometryInfo<dim>::vertices_per_cell;
         for (unsigned int i=0;i<vertices_per_cell;i++) {
+            //add this cell as neighbors for all it's vertex
             unsigned int v_index = cell->vertex_index(i);
             std::vector<typename DoFHandler<dim>::active_cell_iterator> adjacent=vertices_to_cell[v_index];
+            //can only add the cell if it's a set and not a vector
             std::set<typename DoFHandler<dim>::active_cell_iterator> adjacent_2(adjacent.begin(),adjacent.end());
             adjacent_2.insert(cell);
+            //convert back the set to a vector and add it in the vertices_to_cell;
             std::vector<typename DoFHandler<dim>::active_cell_iterator> adjacent_3(adjacent_2.begin(),adjacent_2.end());
             vertices_to_cell[v_index]=adjacent_3;
         }
@@ -794,7 +797,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
         // hanging node constraints for pressure DoFs. This means that our
         // whole system matrix will have rows that are completely
         // zero. Luckily, FGMRES handles these rows without any problem.
-        system_matrix.block(1, 1) = 0;
+        //system_matrix.block(1, 1) = 0;
     }
 }
 
@@ -897,6 +900,10 @@ void DirectSteadyNavierStokes<dim>::refine_mesh_uniform ()
 template <int dim>
 void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
     TimerOutput::Scope timer_section(monitor, "sharp_edge");
+    //This function define a immersed boundary base on the sharp edge method on a hyper_shere of dim 2 or 3
+
+
+    //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
     const double center_x=0;
     const double center_y=0;
@@ -907,42 +914,42 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
         const Point<dim> center_immersed(center_x,center_y,center_x);
 
     std::vector<typename DoFHandler<dim>::active_cell_iterator> active_neighbors;
-    //on<dim> neighbors;
-    // overwrite the line for the point in mesh
+
+
+    //define a map to all dof and it's support point
     MappingQ1<dim> immersed_map;
     std::map< types::global_dof_index, Point< dim >>  	support_points;
     DoFTools::map_dofs_to_support_points(immersed_map,dof_handler,support_points);
 
-    //DoFHandler<dim> cell_neighbors;
-
+    // initalise fe value object in order to do calculation with it later
     QGauss<dim> q_formula(fe.degree+1);
-    // we need to define what part of the finite elements we need to compute in orther to solve the equation we want
-    // in or case wee need the gradient of the shape function the jacobians of the matrix and the shape function values
     FEValues<dim> fe_values(fe, q_formula,update_quadrature_points);
-    //FEValues<dim> fe_values_2(fe, q_formula,update_quadrature_points);
-    //const unsigned int n_q_points = q_formula.size();
     const unsigned int dofs_per_cell = fe.dofs_per_cell;
+
+    // define multiple local_dof_indices one for the cell iterator one for the cell with the second point for
+    // the sharp edge stancil and one for manipulation on the neighbors cell.
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_2(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_3(dofs_per_cell);
-    Vector<double> vertex_index;
-    //unsigned int best_vertex = 0;
 
-    std::vector<Point<dim>> support_point(dof_handler.n_dofs());
+
+
+    //define cell ieteator
     const auto &cell_iterator=dof_handler.active_cell_iterators();
 
-
+    //define the minimal cell side length
     double min_cell_d=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
     std::cout << "min cell dist: " << min_cell_d << std::endl;
 
-
+    //loop on all the cell to define if the sharp edge cut them
     for (const auto &cell : cell_iterator)  {
         fe_values.reinit(cell);
         cell->get_dof_indices(local_dof_indices);
         unsigned int count_small=0;
         unsigned int count_large=0;
         for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
-
+            //count the number of dof that ar smaller or larger then the radius of the particules
+            //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
             if ((support_points[local_dof_indices[j]]-center_immersed).norm()<=radius){
                 ++count_small;
             }
@@ -954,78 +961,100 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
         if (couette==false){
         count_large=0;
         }
+        //if the cell is cut by the IB the count wont equal 0 or the number of total dof in a cell
         if (count_small!=0 and count_small!=local_dof_indices.size()){
-            //cellule coupe par boundary small
+            //if we are here the cell is cut by the immersed boundary
+
+            //loops on the dof that reprensant the velocity   in x and y and pressure separatly
             for (unsigned int k = 0; k< dim+1; ++k) {
+
                 if (k < dim) {
+                    //we are working on the velocity of th
                     unsigned int l = k;
+
+                    //loops on the dof that are for vx or vy separatly
                     while (l < local_dof_indices.size()) {
+                        //define the distance vector between the immersed boundary and the dof support point for each dof
                         Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] - radius *
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed) /
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed).norm());
 
-                        double dist = vect_dist.norm();
-
+                        //define the other point for or 3 point stencil ( IB point, original dof and this point)
                         const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
+                        //define the vertex associated with the dof
                         unsigned int v=floor(l/(dim+1));
                         unsigned int v_index= cell->vertex_index(v);
-                        //active_neighbors=GridTools::find_cells_adjacent_to_vertex(dof_handler,v_index);
+
+                        //get a cell iterator for all the cell neighbors of that vertex
                         active_neighbors=vertices_to_cell[v_index];
+
                         unsigned int cell_found=0;
                         unsigned int n_active_cells= active_neighbors.size();
 
-
-                            for (unsigned int cell_index = 0; cell_index < n_active_cells; ++cell_index) {
-                                try {
-                                    const auto &cell_3 = active_neighbors[cell_index];
-                                    const Point<dim> p_cell = immersed_map.transform_real_to_unit_cell(
-                                            active_neighbors[cell_index], second_point);
-                                    const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
-                                    if (dist_2 == 0) {
-                                        cell_found = cell_index;
-                                        break;
-                                    }
-                                }
-                                catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
+                        //loops on those cell to find in which of them the new point for or sharp edge stencil is
+                        for (unsigned int cell_index = 0; cell_index < n_active_cells; ++cell_index) {
+                            try {
+                                //define the cell and check if the point is inside of the cell
+                                const auto &cell_3 = active_neighbors[cell_index];
+                                const Point<dim> p_cell = immersed_map.transform_real_to_unit_cell(
+                                        active_neighbors[cell_index], second_point);
+                                const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+                                //define the cell and check if the point is inside of the cell
+                                if (dist_2 == 0) {
+                                    //if the point is in this cell then the dist is equal to 0 and we have found our cell
+                                    cell_found = cell_index;
+                                    break;
                                 }
                             }
-                            const auto &cell_2 = active_neighbors[cell_found];
-                            Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
-
-                            cell_2->get_dof_indices(local_dof_indices_2);
-
-                            unsigned int global_index_overrigth = local_dof_indices[l];
-                            double sum_line = system_matrix(global_index_overrigth, global_index_overrigth);
-
-                            for (unsigned int m = 0; m < active_neighbors.size(); m++) {
-                                const auto &cell_3 = active_neighbors[m];
-                                cell_3->get_dof_indices(local_dof_indices_3);
-                                for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
-                                    //sum_line+=system_matrix(global_index_overrigth, local_dof_indices_3[o]);
-                                    system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
-                                    }
-
-
+                            // may cause error if the point is not in cell
+                            catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
                             }
-                                system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                                  -2 / (1 / sum_line));
-                                unsigned int n = k;
-                                while (n < local_dof_indices_2.size()) {
-                                    system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
-                                                      fe.shape_value(n, second_point_v) / (1 / sum_line));
-                                    if (n < (dim + 1) * 4) {
-                                        n = n + dim + 1;
-                                    } else {
-                                        n = n + dim;
-                                    }
-                                }
+                        }
+                        //we have or next cell need to complet the stencil and we define stuff around it
+                        const auto &cell_2 = active_neighbors[cell_found];
+                        //define the unit cell point for the 3rd point of our stencil for a interpolation
+                        Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
+                        cell_2->get_dof_indices(local_dof_indices_2);
+
+                        // define which dof is going to be redefine
+                        unsigned int global_index_overrigth = local_dof_indices[l];
+                        //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value
+                        double sum_line = system_matrix(global_index_overrigth, global_index_overrigth);
 
 
+                        //clear the current line of this dof  by looping on the neighbors cell of this dof and clear all the associated dof
+                        for (unsigned int m = 0; m < active_neighbors.size(); m++) {
+                            const auto &cell_3 = active_neighbors[m];
+                            cell_3->get_dof_indices(local_dof_indices_3);
+                            for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
+                                system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
+                            }
+                        }
+
+                        //define the new matrix entry for this dof
+
+                        // first the dof itself
+                        system_matrix.set(global_index_overrigth, global_index_overrigth,
+                                -2 / (1 / sum_line));
+
+                        unsigned int n = k;
+                        // then the third point trough interpolation from the dof of the cell in which the third point is
+                        while (n < local_dof_indices_2.size()) {
+                            system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
+                                    fe.shape_value(n, second_point_v) / (1 / sum_line));
+                            if (n < (dim + 1) * 4) {
+                                n = n + dim + 1;
+                            } else {
+                                n = n + dim;
+                            }
+                        }
+
+                        // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary conmdition as a dirichlet
                         if (couette==true & initial_step)
                         {
-
+                            // different boundary condition depending if the odf is vx or vy and if the problem we solve
                         if (k == 0) {
                             system_rhs(global_index_overrigth) = 1 * ((support_points[local_dof_indices[l]] -
                                                                        center_immersed) /
@@ -1039,12 +1068,15 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                                                                         center_immersed).norm())[0] / (1/sum_line);
                         }
                         }
+
                         else{
                             system_rhs(global_index_overrigth) =0;
                         }
                         if (couette==false )
                             system_rhs(global_index_overrigth)=0;
 
+
+                        // add index ( this is for P2 element when dof are not at the nodes but should be replace because rest of the code those not workj with that for the moment
                         if (l < (dim + 1) * 4) {
                             l = l + dim + 1;
                         } else {
@@ -1055,7 +1087,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                 }
                 }
             }
-
+        // same as previous but for large circle in the case of couette flow
         if (count_large!=0 and count_large!=local_dof_indices.size()){
             //cellule coupe par boundary large
             for (unsigned int k = 0; k< dim+1; ++k) {
@@ -1140,12 +1172,8 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
             }
         }
     }
-    /*for (unsigned int m = 0; m < dof_handler.n_dofs(); m++)
-        system_matrix.set(dof_handler.n_dofs()-1, m, 0);
-    system_matrix.set(dof_handler.n_dofs()-1,dof_handler.n_dofs()-1,1/(min_cell_d*min_cell_d));
-    system_rhs(dof_handler.n_dofs()-1)=0;*/
-
 }
+
 template<int dim>
 void DirectSteadyNavierStokes<dim>::torque()
 {
@@ -1338,10 +1366,10 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               evaluation_point = present_solution;
               assemble_system(first_step);
               vertices_cell_mapping();
-              //sharp_edge_V2(first_step);
+              sharp_edge_V2(first_step);
               current_res = system_rhs.l2_norm();
               //std::cout  << "Newton iteration: " << outer_iteration << "  - Residual:  " << current_res << std::endl;
-              solve_2(first_step);
+              solve(first_step);
               present_solution = newton_update;
               nonzero_constraints.distribute(present_solution);
               first_step = false;
@@ -1358,8 +1386,8 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               std::cout  << "Newton iteration: " << outer_iteration << "  - Residual:  " << current_res << std::endl;
               evaluation_point = present_solution;
               assemble_system(first_step);
-              //sharp_edge_V2(first_step);
-              solve_2(first_step);
+              sharp_edge_V2(first_step);
+              solve(first_step);
               for (double alpha = 1.0; alpha > 1e-3; alpha *= 0)
                 {
                   evaluation_point = present_solution;
@@ -1432,14 +1460,21 @@ void DirectSteadyNavierStokes<dim>::calculateL2Error()
     const FEValuesExtractors::Vector velocities (0);
     const FEValuesExtractors::Scalar pressure (dim);
 
+    MappingQ1<dim> immersed_map;
+    std::map< types::global_dof_index, Point< dim >>  	support_points;
+    DoFTools::map_dofs_to_support_points(immersed_map,dof_handler,support_points);
 
     const unsigned int   			dofs_per_cell = fe.dofs_per_cell;         // This gives you dofs per cell
     std::vector<types::global_dof_index> local_dof_indices (dofs_per_cell); //  Local connectivity
 
     const unsigned int   n_q_points    = quadrature_formula.size();
     double l2errorU=0.;
-
+    double l2errorU_2=0.;
+    double l2errorU_3=0.;
+    double l2errorU_4=0.;
+    double min_cell_d=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
     std::vector<Vector<double> > q_exactSol (n_q_points, Vector<double>(dim+1));
+    std::vector<Vector<double> > q_exactSol_2 (4, Vector<double>(dim+1));
 
 
     std::vector<Tensor<1,dim> > local_velocity_values (n_q_points);
@@ -1464,35 +1499,93 @@ void DirectSteadyNavierStokes<dim>::calculateL2Error()
     typename DoFHandler<dim>::active_cell_iterator
             cell = dof_handler.begin_active(),
             endc = dof_handler.end();
-    for (; cell!=endc; ++cell)
-    {
-        fe_values.reinit (cell);
-        fe_values[velocities].get_function_values (present_solution,
-                                                   local_velocity_values);
+    for (; cell!=endc; ++cell) {
+        fe_values.reinit(cell);
+        fe_values[velocities].get_function_values(present_solution,
+                                                  local_velocity_values);
         fe_values[pressure].get_function_values(present_solution,
-                                               local_pressure_values);
+                                                local_pressure_values);
 
         //Retrieve the effective "connectivity matrix" for this element
-        cell->get_dof_indices (local_dof_indices);
+        cell->get_dof_indices(local_dof_indices);
 
         // Get the exact solution at all gauss points
         exact_solution->vector_value_list(fe_values.get_quadrature_points(),
-                                            q_exactSol);
+                                          q_exactSol);
 
-        for(unsigned int q=0; q<n_q_points; q++)
-        {
+        for (unsigned int q = 0; q < n_q_points; q++) {
             //Find the values of x and u_h (the finite element solution) at the quadrature points
-            double ux_sim=local_velocity_values[q][0];
-            double ux_exact=q_exactSol[q][0];
 
-            double uy_sim=local_velocity_values[q][1];
-            double uy_exact=q_exactSol[q][1];
+            //std::cout << "quadrature point location : " << fe_values.get_quadrature_points()[q]<< std::endl;
+            double ux_sim = local_velocity_values[q][0];
+            double ux_exact = q_exactSol[q][0];
 
-            l2errorU += (ux_sim-ux_exact)*(ux_sim-ux_exact) * fe_values.JxW(q);
-            l2errorU += (uy_sim-uy_exact)*(uy_sim-uy_exact) * fe_values.JxW(q);
+            double uy_sim = local_velocity_values[q][1];
+            double uy_exact = q_exactSol[q][1];
+
+            l2errorU += (ux_sim - ux_exact) * (ux_sim - ux_exact) * fe_values.JxW(q);
+            l2errorU += (uy_sim - uy_exact) * (uy_sim - uy_exact) * fe_values.JxW(q);
+            if (fe_values.get_quadrature_points()[q].norm() < radius_2-min_cell_d &
+                fe_values.get_quadrature_points()[q].norm() > radius+min_cell_d) {
+                l2errorU_2 += (ux_sim - ux_exact) * (ux_sim - ux_exact) * fe_values.JxW(q);
+                l2errorU_2 += (uy_sim - uy_exact) * (uy_sim - uy_exact) * fe_values.JxW(q);
+            }
+            // std::cout << "local Error is : " << (uy_sim-uy_exact) << std::endl;
+            //std::cout << "local exact solution is :" << (uy_exact) << std::endl;
+            //std::cout << "local  solution is :" << (uy_sim) << std::endl;
         }
     }
-    std::cout << "L2Error is : " << std::sqrt(l2errorU) << std::endl;
+    int count_1=0;
+    for(unsigned int i=0; i<dof_handler.n_dofs()/(dim+1); i=i+1){
+            //Find the values of x and u_h (the finite element solution) at the quadrature points
+
+            //std::cout << "quadrature point location : " << fe_values.get_quadrature_points()[q]<< std::endl;
+        const Point<dim> P= support_points[dim*i];
+        //std::cout << "point :" << P << std::endl;
+
+
+        double r= P.norm();
+
+        double theta= std::atan2(P[1],P[0]);
+        double omega_1=1/radius;
+        double omega_2=0;
+        double ri_=radius;
+        double ro_=radius_2;
+
+        double A= (omega_2*ro_*ro_-omega_1*ri_*ri_)/(ro_*ro_-ri_*ri_);
+        double B= (omega_1-omega_2)*ri_*ri_*ro_*ro_/(ro_*ro_-ri_*ri_);
+        double utheta= A*r + B/r;
+        if (r>ro_)
+            utheta=0;
+        if (r<ri_)
+            utheta=omega_1*r;
+
+
+        double ux_exact = -std::sin(theta)*utheta;
+        double uy_exact = std::cos(theta)*utheta;
+
+        double ux_sim=present_solution[i*dim];
+        double uy_sim=present_solution[i*dim+1];
+
+
+        l2errorU_3 += (ux_sim-ux_exact)*(ux_sim-ux_exact) ;
+        l2errorU_3 += (uy_sim-uy_exact)*(uy_sim-uy_exact) ;
+        if ( r<radius_2-min_cell_d & r>radius+min_cell_d)
+        {
+
+            l2errorU_4 += (ux_sim-ux_exact)*(ux_sim-ux_exact) ;
+            l2errorU_4 += (uy_sim-uy_exact)*(uy_sim-uy_exact) ;
+            count_1+=2;
+        }
+            // std::cout << "local Error is : " << (uy_sim-uy_exact) << std::endl;
+        //std::cout << "local exact solution is :" << (uy_exact) << std::endl;
+        //std::cout << "local  solution is :" << (uy_sim) << std::endl;
+    }
+
+    std::cout << "L2Error global is : " << std::sqrt(l2errorU) << std::endl;
+    std::cout << "L2Error between the 2 cylinder is : " << std::sqrt(l2errorU_2) << std::endl;
+    std::cout << "L2Error global is : " << std::sqrt(l2errorU_3/(dof_handler.n_dofs()*dim/(dim+1))) << std::endl;
+    std::cout << "L2Error between the 2 cylinder is : " << std::sqrt(l2errorU_4/(count_1)) << std::endl;
     L2ErrorU_.push_back(std::sqrt(l2errorU));
 }
 
@@ -1501,13 +1594,13 @@ template<int dim>
 void DirectSteadyNavierStokes<dim>::runMMS()
 {
 
-    exact_solution = new ExactSolutionMMS<dim>;
+    exact_solution = new ExactSolutionTaylorCouette<dim>;
     forcing_function = new NoForce<dim>;
     viscosity_=0.05/6;
-    radius=0.25;
+    radius=0.21;
     radius_2=0.91;
     speed=1;
-    couette= false;
+    couette= true;
     pressure_link=false;
     make_cube_grid(initialSize_);
     setup_dofs();
@@ -1515,14 +1608,14 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     std::cout  << "reynolds for the cylinder : " << speed*radius*2/viscosity_<< std::endl;
 
 //    compute_initial_guess();
-    for (unsigned int cycle =0; cycle < 4 ; cycle++)
+    for (unsigned int cycle =0; cycle < 5 ; cycle++)
     {
         if (cycle !=0) refine_mesh();
         std::cout  << "cycle: " << cycle << std::endl;
         newton_iteration(1.e-6, 10, true, true);
         output_results (cycle);
         torque();
-        //calculateL2Error();
+        calculateL2Error();
 
     }
     std::ofstream output_file("./L2Error.dat");
