@@ -266,7 +266,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
         else{
 
             const Point<dim> P1(-1,-1);
-            const Point<dim> P2(1,2)  ;
+            const Point<dim> P2(2,1)  ;
             GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
         }
     }
@@ -1614,7 +1614,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     std::cout  << "reynolds for the cylinder : " << speed*radius*2/viscosity_<< std::endl;
 
 //    compute_initial_guess();
-    for (unsigned int cycle =0; cycle < 5 ; cycle++)
+    for (unsigned int cycle =0; cycle < 6 ; cycle++)
     {
         if (cycle !=0) refine_mesh();
         std::cout  << "cycle: " << cycle << std::endl;
@@ -1655,7 +1655,7 @@ void DirectSteadyNavierStokes<dim>::runCouette()
     exact_solution = new ExactSolutionTaylorCouette<dim>;
     setup_dofs();
 
-    for (int cycle=0 ; cycle < 4 ; cycle++)
+    for (int cycle=0 ; cycle < 6 ; cycle++)
     {
         if (cycle !=0)  refine_mesh();
         newton_iteration(1.e-10, 50, true, true);
