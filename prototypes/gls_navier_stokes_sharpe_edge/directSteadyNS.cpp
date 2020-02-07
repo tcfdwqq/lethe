@@ -266,7 +266,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
         else{
 
             const Point<dim> P1(-1,-1);
-            const Point<dim> P2(1,1)  ;
+            const Point<dim> P2(1,2)  ;
             GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
         }
     }
@@ -280,7 +280,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (5);
+  triangulation.refine_global (7);
 }
 
 template <int dim>
@@ -341,9 +341,9 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
           DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
           VectorTools::interpolate_boundary_values(dof_handler, 0, Uniform_Inlet<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
-          VectorTools::interpolate_boundary_values(dof_handler, 2, ZeroFunction<dim>(dim+1), nonzero_constraints,
+          VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
-          VectorTools::interpolate_boundary_values(dof_handler, 3, ZeroFunction<dim>(dim+1), nonzero_constraints,
+          VectorTools::interpolate_boundary_values(dof_handler, 3, Symetrics_Wall<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
           if (dim == 3) {
               VectorTools::interpolate_boundary_values(dof_handler, 4, Symetrics_Wall<dim>(), nonzero_constraints,
@@ -452,7 +452,7 @@ void DirectSteadyNavierStokes<dim>::initialize_system()
     TimerOutput::Scope timer_section(monitor, "initialize");
   {
     BlockDynamicSparsityPattern dsp (dofs_per_block,dofs_per_block);
-    DoFTools::make_flux_sparsity_pattern (dof_handler, dsp, nonzero_constraints);
+    DoFTools::make_sparsity_pattern (dof_handler, dsp, nonzero_constraints);
     sparsity_pattern.copy_from (dsp);
   }
   system_matrix.reinit (sparsity_pattern);
@@ -870,7 +870,7 @@ void DirectSteadyNavierStokes<dim>::refine_mesh ()
                                         fe.component_mask(velocity));
     GridRefinement::refine_and_coarsen_fixed_number (triangulation,
                                                      estimated_error_per_cell,
-                                                     1, 0.0);
+                                                     0.3, 0.0);
     triangulation.prepare_coarsening_and_refinement();
     SolutionTransfer<dim, BlockVector<double> > solution_transfer(dof_handler);
     solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
@@ -1012,6 +1012,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                             catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
                             }
                         }
+
                         //we have or next cell need to complet the stencil and we define stuff around it
                         const auto &cell_2 = active_neighbors[cell_found];
                         //define the unit cell point for the 3rd point of our stencil for a interpolation
@@ -1020,7 +1021,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
 
                         // define which dof is going to be redefine
                         unsigned int global_index_overrigth = local_dof_indices[l];
-                        //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value
+                            //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value
                         double sum_line = system_matrix(global_index_overrigth, global_index_overrigth);
 
 
@@ -1034,23 +1035,28 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                         }
 
                         //define the new matrix entry for this dof
+                        if(vect_dist.norm()!=0) {
+                            // first the dof itself
+                            system_matrix.set(global_index_overrigth, global_index_overrigth,
+                                              -2 / (1 / sum_line));
 
-                        // first the dof itself
-                        system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                -2 / (1 / sum_line));
-
-                        unsigned int n = k;
-                        // then the third point trough interpolation from the dof of the cell in which the third point is
-                        while (n < local_dof_indices_2.size()) {
-                            system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
-                                    fe.shape_value(n, second_point_v) / (1 / sum_line));
-                            if (n < (dim + 1) * 4) {
-                                n = n + dim + 1;
-                            } else {
-                                n = n + dim;
+                            unsigned int n = k;
+                            // then the third point trough interpolation from the dof of the cell in which the third point is
+                            while (n < local_dof_indices_2.size()) {
+                                system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
+                                                  fe.shape_value(n, second_point_v) / (1 / sum_line));
+                                if (n < (dim + 1) * 4) {
+                                    n = n + dim + 1;
+                                } else {
+                                    n = n + dim;
+                                }
                             }
                         }
+                        else{
+                            system_matrix.set(global_index_overrigth, global_index_overrigth,
+                                                sum_line);
 
+                        }
                         // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary conmdition as a dirichlet
                         if (couette==true & initial_step)
                         {
@@ -1596,11 +1602,11 @@ void DirectSteadyNavierStokes<dim>::runMMS()
 
     exact_solution = new ExactSolutionTaylorCouette<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=0.05/6;
-    radius=0.21;
+    viscosity_=0.5/6;
+    radius=0.25;
     radius_2=0.91;
     speed=1;
-    couette= true;
+    couette= false;
     pressure_link=false;
     make_cube_grid(initialSize_);
     setup_dofs();
@@ -1614,8 +1620,10 @@ void DirectSteadyNavierStokes<dim>::runMMS()
         std::cout  << "cycle: " << cycle << std::endl;
         newton_iteration(1.e-6, 10, true, true);
         output_results (cycle);
+        if (couette==true){
         torque();
         calculateL2Error();
+        }
 
     }
     std::ofstream output_file("./L2Error.dat");
