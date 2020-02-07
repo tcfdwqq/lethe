@@ -280,7 +280,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (7);
+  triangulation.refine_global (4);
 }
 
 template <int dim>
@@ -1602,7 +1602,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
 
     exact_solution = new ExactSolutionTaylorCouette<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=0.5/6;
+    viscosity_=1;
     radius=0.25;
     radius_2=0.91;
     speed=1;
@@ -1704,7 +1704,7 @@ int main ()
 {
     try
     {
-        DirectSteadyNavierStokes<2> problem_2d(1,1);
+        DirectSteadyNavierStokes<3> problem_2d(1,1);
         //problem_2d.runCouette();
         problem_2d.runMMS();
     }
