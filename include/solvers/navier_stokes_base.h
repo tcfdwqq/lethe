@@ -255,9 +255,9 @@ protected:
   read_mesh();
 
   /**
-   * @brief set_periodicity
+   * @brief setup_dofs
    *
-   * Initialize the periodic boundary conditions
+   * Initialize the degree of freedom
    */
   virtual void
   setup_dofs() = 0;
