@@ -3,7 +3,7 @@
 ##
 
 # Set the name of the project and target:
-SET(TARGET "mystep_60V2")
+SET(TARGET "step-60-V2")
 
 # Declare all source files the target consists of. Here, this is only
 # the one step-X.cc file, but as you expand your project you may wish
@@ -34,6 +34,6 @@ IF(NOT ${deal.II_FOUND})
             )
 ENDIF()
 
-DEAL_II_INITIALIZE_CACHED_VARIABLES()
-PROJECT(${TARGET})
-DEAL_II_INVOKE_AUTOPILOT()
+ADD_EXECUTABLE(${TARGET} ${TARGET_SRC})
+DEAL_II_SETUP_TARGET(${TARGET})
+TARGET_LINK_LIBRARIES(${TARGET}) 
