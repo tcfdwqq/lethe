@@ -1700,8 +1700,13 @@ void DirectSteadyNavierStokes<dim>::runCouette_sharp()
     output_file.close();
 }
 
-int main ()
+int main (int argc, char *argv[])
 {
+	// À discuter avec Bruno
+	Utilities::MPI::MPI_InitFinalize mpi_initialization(
+        argc, argv, numbers::invalid_unsigned_int);
+	// Fin de discussion avec Bruno
+	
     try
     {
         DirectSteadyNavierStokes<2> problem_2d(1,1);
