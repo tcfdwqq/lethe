@@ -341,10 +341,17 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
           DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
           VectorTools::interpolate_boundary_values(dof_handler, 0, Uniform_Inlet<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
-          VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
+          /*VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
           VectorTools::interpolate_boundary_values(dof_handler, 3, Symetrics_Wall<dim>(), nonzero_constraints,
-                                                   fe.component_mask(velocities));
+                                                   fe.component_mask(velocities));*/
+          std::set<types::boundary_id> no_normal_flux_boundaries;
+          no_normal_flux_boundaries.insert(2);
+          no_normal_flux_boundaries.insert(3);
+          VectorTools::compute_no_normal_flux_constraints(dof_handler,0,no_normal_flux_boundaries,nonzero_constraints);
+
+
+
           if (dim == 3) {
               VectorTools::interpolate_boundary_values(dof_handler, 4, Symetrics_Wall<dim>(), nonzero_constraints,
                                                        fe.component_mask(velocities));
@@ -382,7 +389,7 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
                                                ZeroFunction<dim>(dim+1),
                                                zero_constraints,
                                                fe.component_mask(velocities));
-        VectorTools::interpolate_boundary_values(dof_handler,
+       /* VectorTools::interpolate_boundary_values(dof_handler,
                                                  2,
                                                  ZeroFunction<dim>(dim+1),
                                                  zero_constraints,
@@ -391,7 +398,11 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
                                                  3,
                                                  ZeroFunction<dim>(dim+1),
                                                  zero_constraints,
-                                                 fe.component_mask(velocities));
+                                                 fe.component_mask(velocities));*/
+        std::set<types::boundary_id> no_normal_flux_boundaries;
+        no_normal_flux_boundaries.insert(2);
+        no_normal_flux_boundaries.insert(3);
+        VectorTools::compute_no_normal_flux_constraints(dof_handler,0,no_normal_flux_boundaries,zero_constraints);
         if (dim==3){
             VectorTools::interpolate_boundary_values(dof_handler,
                                                      4,
@@ -1603,7 +1614,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     exact_solution = new ExactSolutionTaylorCouette<dim>;
     forcing_function = new NoForce<dim>;
     viscosity_=0.05/6;
-    radius=0.025;
+    radius=0.25;
     radius_2=0.91;
     speed=1;
     couette= false;
@@ -1620,8 +1631,9 @@ void DirectSteadyNavierStokes<dim>::runMMS()
         std::cout  << "cycle: " << cycle << std::endl;
         newton_iteration(1.e-6, 10, true, true);
         output_results (cycle);
-        if (couette==true){
         torque();
+        if (couette==true){
+
         calculateL2Error();
         }
 

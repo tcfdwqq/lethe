@@ -20,15 +20,15 @@ IF("${isSystemDir}" STREQUAL "-1")
 ENDIF("${isSystemDir}" STREQUAL "-1")
 
 # Set the name of the project and target:
-SET(TARGET "gls_navier_stokes_2d")
+SET(TARGET "gls_navier_stokes_2d_sharp")
 
 INCLUDE_DIRECTORIES(
   lethe
   ${CMAKE_SOURCE_DIR}/include/
   )
-ADD_EXECUTABLE(gls_navier_stokes_2d gls_navier_stokes_2d.cc)
-DEAL_II_SETUP_TARGET(gls_navier_stokes_2d)
-TARGET_LINK_LIBRARIES(gls_navier_stokes_2d lethe-core lethe-solvers)
+ADD_EXECUTABLE(gls_navier_stokes_2d_sharp gls_navier_stokes_2d_sharp.cc)
+DEAL_II_SETUP_TARGET(gls_navier_stokes_2d_sharp)
+TARGET_LINK_LIBRARIES(gls_navier_stokes_2d_sharp lethe-core lethe-solvers)
 
-install(TARGETS gls_navier_stokes_2d RUNTIME DESTINATION bin)
+install(TARGETS gls_navier_stokes_2d_sharp RUNTIME DESTINATION bin)
 

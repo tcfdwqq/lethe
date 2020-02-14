@@ -52,7 +52,11 @@
 
 # Ignore all build file 
 build/*
+cmake-build-debug/*
+cmake-build-release/*
 
+# Ignore clion recommandation file
+.idea/*
 
 # Ingnore build file for prototype code
 prototypes/step-60-V2/cmake-build-debug/*
@@ -65,6 +69,10 @@ prototypes/Sharp_edge/build/*
 prototypes/direct_steadyNS_sharpe_edge/.idea/*
 prototypes/direct_steadyNS/.idea/*
 prototypes/Sharp_edge/.idea/*
+prototypes/gls_navier_stokes_sharpe_edge/cmake-build-debug/*
+prototypes/gls_navier_stokes_sharpe_edge/build/*
+prototypes/gls_navier_stokes_sharpe_edge/.idea/*
+
 
 # Ingnore build file for prototype code
 prototypes/step-60-V2/.idea/*

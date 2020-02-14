@@ -17,13 +17,13 @@
  * Author: Bruno Blais, Polytechnique Montreal, 2019-
  */
 
-#include "solvers/sharp_edge_gls_navier_stokes.h"
+#include "solvers/gls_navier_stokes.h"
 
 #include "core/sdirk.h"
 
-// Constructor for class SharpEdgeGLSNavierStokesSolver
+// Constructor for class GLSNavierStokesSolver
 template <int dim>
-SharpEdgeGLSNavierStokesSolver<dim>::SharpEdgeGLSNavierStokesSolver(
+GLSNavierStokesSolver<dim>::GLSNavierStokesSolver(
   NavierStokesSolverParameters<dim> &p_nsparam,
   const unsigned int                 p_degreeVelocity,
   const unsigned int                 p_degreePressure)
@@ -34,7 +34,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::SharpEdgeGLSNavierStokesSolver(
 {}
 
 template <int dim>
-SharpEdgeGLSNavierStokesSolver<dim>::~SharpEdgeGLSNavierStokesSolver()
+GLSNavierStokesSolver<dim>::~GLSNavierStokesSolver()
 {
   this->dof_handler.clear();
 }
@@ -43,14 +43,14 @@ SharpEdgeGLSNavierStokesSolver<dim>::~SharpEdgeGLSNavierStokesSolver()
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::set_solution_vector(double value)
+GLSNavierStokesSolver<dim>::set_solution_vector(double value)
 {
   this->present_solution = value;
 }
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::setup_dofs()
+GLSNavierStokesSolver<dim>::setup_dofs()
 {
   TimerOutput::Scope t(this->computing_timer, "setup_dofs");
 
@@ -226,7 +226,7 @@ template <int dim>
 template <bool                                              assemble_matrix,
           Parameters::SimulationControl::TimeSteppingMethod scheme>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::assembleGLS()
+GLSNavierStokesSolver<dim>::assembleGLS()
 {
   if (assemble_matrix)
     system_matrix = 0;
@@ -680,7 +680,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::assembleGLS()
  **/
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::set_initial_condition(
+GLSNavierStokesSolver<dim>::set_initial_condition(
   Parameters::InitialConditionType initial_condition_type,
   bool                             restart)
 {
@@ -733,7 +733,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::set_initial_condition(
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::assemble_L2_projection()
+GLSNavierStokesSolver<dim>::assemble_L2_projection()
 {
   system_matrix    = 0;
   this->system_rhs = 0;
@@ -823,7 +823,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::assemble_L2_projection()
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::set_nodal_values()
+GLSNavierStokesSolver<dim>::set_nodal_values()
 {
   const FEValuesExtractors::Vector velocities(0);
   const FEValuesExtractors::Scalar pressure(dim);
@@ -845,7 +845,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::set_nodal_values()
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::assemble_matrix_and_rhs(
+GLSNavierStokesSolver<dim>::assemble_matrix_and_rhs(
   const Parameters::SimulationControl::TimeSteppingMethod time_stepping_method)
 {
   TimerOutput::Scope t(this->computing_timer, "assemble_system");
@@ -889,7 +889,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::assemble_matrix_and_rhs(
 }
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::assemble_rhs(
+GLSNavierStokesSolver<dim>::assemble_rhs(
   const Parameters::SimulationControl::TimeSteppingMethod time_stepping_method)
 {
   TimerOutput::Scope t(this->computing_timer, "assemble_rhs");
@@ -934,9 +934,8 @@ SharpEdgeGLSNavierStokesSolver<dim>::assemble_rhs(
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::solve_linear_system(
-  const bool initial_step,
-  const bool renewed_matrix)
+GLSNavierStokesSolver<dim>::solve_linear_system(const bool initial_step,
+                                                const bool renewed_matrix)
 {
   const double absolute_residual = this->nsparam.linearSolver.minimum_residual;
   const double relative_residual = this->nsparam.linearSolver.relative_residual;
@@ -965,7 +964,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::solve_linear_system(
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::setup_ILU()
+GLSNavierStokesSolver<dim>::setup_ILU()
 {
   TimerOutput::Scope t(this->computing_timer, "setup_ILU");
 
@@ -982,7 +981,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::setup_ILU()
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::setup_AMG()
+GLSNavierStokesSolver<dim>::setup_AMG()
 {
   TimerOutput::Scope t(this->computing_timer, "setup_AMG");
 
@@ -1046,11 +1045,10 @@ SharpEdgeGLSNavierStokesSolver<dim>::setup_AMG()
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::solve_system_GMRES(
-  const bool   initial_step,
-  const double absolute_residual,
-  const double relative_residual,
-  const bool   renewed_matrix)
+GLSNavierStokesSolver<dim>::solve_system_GMRES(const bool   initial_step,
+                                               const double absolute_residual,
+                                               const double relative_residual,
+                                               const bool   renewed_matrix)
 {
   const AffineConstraints<double> &constraints_used =
     initial_step ? this->nonzero_constraints : this->zero_constraints;
@@ -1096,7 +1094,7 @@ SharpEdgeGLSNavierStokesSolver<dim>::solve_system_GMRES(
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::solve_system_BiCGStab(
+GLSNavierStokesSolver<dim>::solve_system_BiCGStab(
   const bool   initial_step,
   const double absolute_residual,
   const double relative_residual,
@@ -1147,11 +1145,10 @@ SharpEdgeGLSNavierStokesSolver<dim>::solve_system_BiCGStab(
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::solve_system_AMG(
-  const bool   initial_step,
-  const double absolute_residual,
-  const double relative_residual,
-  const bool   renewed_matrix)
+GLSNavierStokesSolver<dim>::solve_system_AMG(const bool   initial_step,
+                                             const double absolute_residual,
+                                             const double relative_residual,
+                                             const bool   renewed_matrix)
 {
   const AffineConstraints<double> &constraints_used =
     initial_step ? this->nonzero_constraints : this->zero_constraints;
@@ -1199,11 +1196,11 @@ SharpEdgeGLSNavierStokesSolver<dim>::solve_system_AMG(
 
 template <int dim>
 void
-SharpEdgeGLSNavierStokesSolver<dim>::solve()
+GLSNavierStokesSolver<dim>::solve()
 {
   this->read_mesh();
   this->create_manifolds();
-
+  //std::cout << "vertice_to_cell:start ... "<< std::endl;
   this->setup_dofs();
   this->set_initial_condition(this->nsparam.initialCondition->type,
                               this->nsparam.restartParameters.restart);
@@ -1227,5 +1224,5 @@ SharpEdgeGLSNavierStokesSolver<dim>::solve()
 
 // Pre-compile the 2D and 3D Navier-Stokes solver to ensure that the library is
 // valid before we actually compile the solver This greatly helps with debugging
-template class SharpEdgeGLSNavierStokesSolver<2>;
-template class SharpEdgeGLSNavierStokesSolver<3>;
+template class GLSNavierStokesSolver<2>;
+template class GLSNavierStokesSolver<3>;
