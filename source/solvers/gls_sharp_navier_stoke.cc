@@ -1250,7 +1250,7 @@ GLSNavierStokesSharpSolver<dim>::solve_linear_system(const bool initial_step,
                                                 const bool renewed_matrix)
 {
   vertices_cell_mapping();
-  sharp_edge(initial_step);
+  sharp_edge(true);
   const double absolute_residual = this->nsparam.linearSolver.minimum_residual;
   const double relative_residual = this->nsparam.linearSolver.relative_residual;
 

@@ -145,8 +145,8 @@ private:
   const bool   SUPG        = true;
   const double GLS_u_scale = 1;
   double radius=0.2;
-  double radius_2=0.9;
-  bool couette= false;
+  double radius_2=0.6;
+  bool couette= true;
 
 };
 

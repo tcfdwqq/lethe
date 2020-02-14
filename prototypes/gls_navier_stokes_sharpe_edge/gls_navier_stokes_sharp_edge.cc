@@ -796,11 +796,11 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                                                         system_rhs);
         }
     }
-    if (assemble_matrix)
-    {
+    //if (assemble_matrix)
+    //{
         // Finally we move pressure mass matrix into a separate matrix:
-        pressure_mass_matrix.reinit(sparsity_pattern.block(1, 1));
-        pressure_mass_matrix.copy_from(system_matrix.block(1, 1));
+        //pressure_mass_matrix.reinit(sparsity_pattern.block(1, 1));
+        //pressure_mass_matrix.copy_from(system_matrix.block(1, 1));
 
         // Note that settings this pressure block to zero is not identical to
         // not assembling anything in this block, because this operation here
@@ -809,7 +809,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
         // whole system matrix will have rows that are completely
         // zero. Luckily, FGMRES handles these rows without any problem.
         //system_matrix.block(1, 1) = 0;
-    }
+    //}
 }
 
 
@@ -1071,7 +1071,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                         // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary conmdition as a dirichlet
                         if (couette==true & initial_step)
                         {
-                            // different boundary condition depending if the odf is vx or vy and if the problem we solve
+                            // different boundary condition depending if the dof is vx or vy and of the problem we solve
                         if (k == 0) {
                             system_rhs(global_index_overrigth) = 1 * ((support_points[local_dof_indices[l]] -
                                                                        center_immersed) /
@@ -1419,6 +1419,7 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
                   last_vect-= present_solution;
 
                   current_res = last_vect.l2_norm();
+                  current_res = system_rhs.l2_norm();
                   last_vect.reinit(present_solution);
                   last_vect=present_solution;
                   //std::cout << "residual : "<<  current_res << std::endl;
