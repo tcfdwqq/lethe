@@ -280,7 +280,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (8);
+  triangulation.refine_global (7);
 }
 
 template <int dim>
@@ -1404,22 +1404,26 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               evaluation_point = present_solution;
               assemble_system(first_step);
               sharp_edge_V2(first_step);
+              current_res = system_rhs.l2_norm();
               solve(first_step);
               for (double alpha = 1.0; alpha > 1e-3; alpha *= 0)
                 {
                   evaluation_point = present_solution;
                   evaluation_point.add(alpha, newton_update);
                   nonzero_constraints.distribute(evaluation_point);
+                  //current_res = newton_update.l2_norm();
+
+                  std::cout  <<  "  - Residual:  " << current_res << std::endl;
+                  current_res = system_rhs.l2_norm();
                   assemble_rhs(first_step);
+                  //std::cout  <<  "  - Residual 2:  " << system_rhs.linfty_norm() << std::endl;
 
-
-
-                present_solution = evaluation_point;
+                  present_solution = evaluation_point;
 
                   last_vect-= present_solution;
+                  //current_res = system_rhs.l2_norm();
+                  //current_res = last_vect.l2_norm();
 
-                  current_res = last_vect.l2_norm();
-                  current_res = system_rhs.l2_norm();
                   last_vect.reinit(present_solution);
                   last_vect=present_solution;
                   //std::cout << "residual : "<<  current_res << std::endl;
@@ -1615,7 +1619,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
     exact_solution = new ExactSolutionTaylorCouette<dim>;
     forcing_function = new NoForce<dim>;
     viscosity_=0.05/6;
-    radius=0.25;
+    radius=0.21;
     radius_2=0.91;
     speed=1;
     couette= false;

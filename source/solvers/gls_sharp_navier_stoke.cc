@@ -1514,7 +1514,7 @@ GLSNavierStokesSharpSolver<dim>::solve()
 {
   this->read_mesh();
   this->create_manifolds();
-  std::cout << "vertice_to_cell:start ... "<< std::endl;
+
   this->setup_dofs();
   this->set_initial_condition(this->nsparam.initialCondition->type,
                               this->nsparam.restartParameters.restart);
