@@ -266,7 +266,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
         else{
 
             const Point<dim> P1(-1,-1);
-            const Point<dim> P2(2,1)  ;
+            const Point<dim> P2(1,1)  ;
             GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
         }
     }
@@ -280,7 +280,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
 
   //const Point<2> center_immersed(0,0);
   //GridGenerator::hyper_ball(triangulation,center_immersed,1);
-  triangulation.refine_global (7);
+  triangulation.refine_global (5);
 }
 
 template <int dim>
@@ -341,14 +341,16 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
           DoFTools::make_hanging_node_constraints(dof_handler, nonzero_constraints);
           VectorTools::interpolate_boundary_values(dof_handler, 0, Uniform_Inlet<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
-          /*VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
+          VectorTools::interpolate_boundary_values(dof_handler, 2, Symetrics_Wall<dim>(), nonzero_constraints,
+                                                   fe.component_mask(velocities));
+          VectorTools::interpolate_boundary_values(dof_handler, 1, Symetrics_Wall<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
           VectorTools::interpolate_boundary_values(dof_handler, 3, Symetrics_Wall<dim>(), nonzero_constraints,
-                                                   fe.component_mask(velocities));*/
-          std::set<types::boundary_id> no_normal_flux_boundaries;
+                                                   fe.component_mask(velocities));
+          /*std::set<types::boundary_id> no_normal_flux_boundaries;
           no_normal_flux_boundaries.insert(2);
           no_normal_flux_boundaries.insert(3);
-          VectorTools::compute_no_normal_flux_constraints(dof_handler,0,no_normal_flux_boundaries,nonzero_constraints);
+          VectorTools::compute_no_normal_flux_constraints(dof_handler,0,no_normal_flux_boundaries,nonzero_constraints);*/
 
 
 
@@ -389,7 +391,7 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
                                                ZeroFunction<dim>(dim+1),
                                                zero_constraints,
                                                fe.component_mask(velocities));
-       /* VectorTools::interpolate_boundary_values(dof_handler,
+        VectorTools::interpolate_boundary_values(dof_handler,
                                                  2,
                                                  ZeroFunction<dim>(dim+1),
                                                  zero_constraints,
@@ -398,11 +400,16 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
                                                  3,
                                                  ZeroFunction<dim>(dim+1),
                                                  zero_constraints,
-                                                 fe.component_mask(velocities));*/
-        std::set<types::boundary_id> no_normal_flux_boundaries;
+                                                 fe.component_mask(velocities));
+        VectorTools::interpolate_boundary_values(dof_handler,
+                                                 1,
+                                                 ZeroFunction<dim>(dim+1),
+                                                 zero_constraints,
+                                                 fe.component_mask(velocities));
+        /*std::set<types::boundary_id> no_normal_flux_boundaries;
         no_normal_flux_boundaries.insert(2);
         no_normal_flux_boundaries.insert(3);
-        VectorTools::compute_no_normal_flux_constraints(dof_handler,0,no_normal_flux_boundaries,zero_constraints);
+        VectorTools::compute_no_normal_flux_constraints(dof_handler,0,no_normal_flux_boundaries,zero_constraints);*/
         if (dim==3){
             VectorTools::interpolate_boundary_values(dof_handler,
                                                      4,
@@ -721,7 +728,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                         //  fe_values.JxW(q);
 
                         // Jacobian is currently incomplete
-                        if (false)
+                        if (true)
                         {
                             local_matrix(i, j) +=
                                     tau *
@@ -766,7 +773,7 @@ void DirectSteadyNavierStokes<dim>::assemble(const bool initial_step,
                         -tau * (strong_residual * grad_phi_p[i]) * fe_values.JxW(q);
 
                 // SUPG GLS term
-                if (false)
+                if (true)
                 {
                     local_rhs(i) +=
                             -tau *
@@ -881,7 +888,7 @@ void DirectSteadyNavierStokes<dim>::refine_mesh ()
                                         fe.component_mask(velocity));
     GridRefinement::refine_and_coarsen_fixed_number (triangulation,
                                                      estimated_error_per_cell,
-                                                     0.3, 0.0);
+                                                     1, 0.0);
     triangulation.prepare_coarsening_and_refinement();
     SolutionTransfer<dim, BlockVector<double> > solution_transfer(dof_handler);
     solution_transfer.prepare_for_coarsening_and_refinement(present_solution);
@@ -949,8 +956,8 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
     const auto &cell_iterator=dof_handler.active_cell_iterators();
 
     //define the minimal cell side length
-    double min_cell_d=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
-    std::cout << "min cell dist: " << min_cell_d << std::endl;
+    //double min_cell_d=(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(triangulation)*GridTools::minimal_cell_diameter(triangulation)));
+    //std::cout << "min cell dist: " << min_cell_d << std::endl;
 
     //loop on all the cell to define if the sharp edge cut them
     for (const auto &cell : cell_iterator)  {
@@ -1396,7 +1403,6 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               last_res = current_res;
               last_vect.reinit(present_solution);
               last_vect=present_solution;
-              ;
             }
           else
             {
@@ -1406,7 +1412,7 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
               sharp_edge_V2(first_step);
               current_res = system_rhs.l2_norm();
               solve(first_step);
-              for (double alpha = 1.0; alpha > 1e-3; alpha *= 0)
+              for (double alpha = 1.0; alpha > 1e-3; alpha *= 0.5)
                 {
                   evaluation_point = present_solution;
                   evaluation_point.add(alpha, newton_update);
@@ -1416,6 +1422,7 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
                   std::cout  <<  "  - Residual:  " << current_res << std::endl;
                   current_res = system_rhs.l2_norm();
                   assemble_rhs(first_step);
+                  sharp_edge_V2(first_step);
                   //std::cout  <<  "  - Residual 2:  " << system_rhs.linfty_norm() << std::endl;
 
                   present_solution = evaluation_point;
@@ -1618,7 +1625,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
 
     exact_solution = new ExactSolutionTaylorCouette<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=0.05/6;
+    viscosity_=1;
     radius=0.21;
     radius_2=0.91;
     speed=1;

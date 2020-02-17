@@ -226,7 +226,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
                         }
                         // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary conmdition as a dirichlet
-                        if (couette==true & initial_step)
+                        /*if (couette==true & initial_step)
                         {
                             // different boundary condition depending if the odf is vx or vy and if the problem we solve
                             if (k == 0) {
@@ -246,7 +246,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                         else{
                             this->system_rhs(global_index_overrigth) =0;
                         }
-                        if (couette==false )
+                        if (couette==false )*/
                             this->system_rhs(global_index_overrigth)=0;
 
 
@@ -1241,7 +1241,8 @@ GLSNavierStokesSharpSolver<dim>::assemble_rhs(
            Parameters::SimulationControl::TimeSteppingMethod::steady)
     assembleGLS<false,
                 Parameters::SimulationControl::TimeSteppingMethod::steady>();
-
+    vertices_cell_mapping();
+    sharp_edge(true);
 }
 
 template <int dim>
@@ -1249,11 +1250,11 @@ void
 GLSNavierStokesSharpSolver<dim>::solve_linear_system(const bool initial_step,
                                                 const bool renewed_matrix)
 {
-  vertices_cell_mapping();
-  sharp_edge(true);
+
   const double absolute_residual = this->nsparam.linearSolver.minimum_residual;
   const double relative_residual = this->nsparam.linearSolver.relative_residual;
-
+  vertices_cell_mapping();
+  sharp_edge(initial_step);
   if (this->nsparam.linearSolver.solver ==
       Parameters::LinearSolver::SolverType::gmres)
     solve_system_GMRES(initial_step,

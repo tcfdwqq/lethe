@@ -68,8 +68,9 @@ NewtonNonLinearSolver<VectorType>::solve(
           solver->apply_constraints();
           solver->evaluation_point = solver->local_evaluation_point;
           solver->assemble_rhs(time_stepping_method);
-
           current_res = solver->system_rhs.l2_norm();
+
+
 
           if (this->params.verbosity != Parameters::Verbosity::quiet)
             {

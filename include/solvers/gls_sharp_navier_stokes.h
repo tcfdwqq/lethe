@@ -144,9 +144,9 @@ private:
   std::vector<std::vector<typename DoFHandler<dim>::active_cell_iterator>> vertices_to_cell;
   const bool   SUPG        = true;
   const double GLS_u_scale = 1;
-  double radius=0.2;
+  double radius=0.21;
   double radius_2=0.6;
-  bool couette= true;
+  bool couette= false;
 
 };
 
