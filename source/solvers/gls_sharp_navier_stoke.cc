@@ -43,7 +43,7 @@ GLSNavierStokesSharpSolver<dim>::~GLSNavierStokesSharpSolver()
 
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
-{   std::cout << "vertice_to_cell:start ... "<< std::endl;
+{
     //map the vertex index to the cell that include that vertex used later in which cell a point falls in
     //vertices_to_cell is a vector of vectof of dof handler active cell iterator each element i of the vector is a vector of all the cell in contact with the vertex i
     vertices_to_cell.clear();
@@ -150,13 +150,14 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                                                                     center_immersed).norm());
 
                         //define the other point for or 3 point stencil ( IB point, original dof and this point)
-                        const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
+                        const Point<dim, double> second_point(support_points[local_dof_indices[l]] + vect_dist);
+
                         //define the vertex associated with the dof
                         unsigned int v=floor(l/(dim+1));
                         unsigned int v_index= cell->vertex_index(v);
 
                         //get a cell iterator for all the cell neighbors of that vertex
-                        active_neighbors=vertices_to_cell[v_index];
+                        active_neighbors=this->vertices_to_cell[v_index];
 
                         unsigned int cell_found=0;
                         unsigned int n_active_cells= active_neighbors.size();
@@ -166,9 +167,10 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             try {
                                 //define the cell and check if the point is inside of the cell
                                 const auto &cell_3 = active_neighbors[cell_index];
-                                const Point<dim> p_cell = immersed_map.transform_real_to_unit_cell(
+                                const Point<dim,double> p_cell = immersed_map.transform_real_to_unit_cell(
                                         active_neighbors[cell_index], second_point);
                                 const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+                                //std::cout << "second_point : "<< dist_2 << std::endl;
                                 //define the cell and check if the point is inside of the cell
                                 if (dist_2 == 0) {
                                     //if the point is in this cell then the dist is equal to 0 and we have found our cell
@@ -185,12 +187,16 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                         const auto &cell_2 = active_neighbors[cell_found];
                         //define the unit cell point for the 3rd point of our stencil for a interpolation
                         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
+                        Point<dim, double> second_point_v_2 = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
                         cell_2->get_dof_indices(local_dof_indices_2);
+                        std::cout << "second_point : "<< second_point_v<< std::endl;
+                        std::cout << "second_point double : "<< second_point_v_2<< std::endl;
+                        //std::cout << "second_point : "<< second_point_v<< std::endl;
 
                         // define which dof is going to be redefine
                         unsigned int global_index_overrigth = local_dof_indices[l];
                         //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value
-                        double sum_line = system_matrix(global_index_overrigth, global_index_overrigth);
+                        double sum_line = this->system_matrix(global_index_overrigth, global_index_overrigth);
 
 
                         //clear the current line of this dof  by looping on the neighbors cell of this dof and clear all the associated dof
@@ -198,21 +204,22 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             const auto &cell_3 = active_neighbors[m];
                             cell_3->get_dof_indices(local_dof_indices_3);
                             for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
-                                system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
+                                this->system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
                             }
                         }
 
                         //define the new matrix entry for this dof
                         if(vect_dist.norm()!=0) {
                             // first the dof itself
-                            system_matrix.set(global_index_overrigth, global_index_overrigth,
+                            this->system_matrix.set(global_index_overrigth, global_index_overrigth,
                                               -2 / (1 / sum_line));
 
                             unsigned int n = k;
                             // then the third point trough interpolation from the dof of the cell in which the third point is
                             while (n < local_dof_indices_2.size()) {
-                                system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
+                                this->system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
                                                   this->fe.shape_value(n, second_point_v) / (1 / sum_line));
+
                                 if (n < (dim + 1) * 4) {
                                     n = n + dim + 1;
                                 } else {
@@ -221,12 +228,12 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             }
                         }
                         else{
-                            system_matrix.set(global_index_overrigth, global_index_overrigth,
+                            this->system_matrix.set(global_index_overrigth, global_index_overrigth,
                                               sum_line);
 
                         }
                         // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary conmdition as a dirichlet
-                        /*if (couette==true & initial_step)
+                        if (couette==true & initial_step)
                         {
                             // different boundary condition depending if the odf is vx or vy and if the problem we solve
                             if (k == 0) {
@@ -246,7 +253,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                         else{
                             this->system_rhs(global_index_overrigth) =0;
                         }
-                        if (couette==false )*/
+                        if (couette==false )
                             this->system_rhs(global_index_overrigth)=0;
 
 

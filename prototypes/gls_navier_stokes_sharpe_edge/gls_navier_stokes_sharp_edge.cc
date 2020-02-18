@@ -1020,6 +1020,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                                         active_neighbors[cell_index], second_point);
                                 const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
                                 //define the cell and check if the point is inside of the cell
+
                                 if (dist_2 == 0) {
                                     //if the point is in this cell then the dist is equal to 0 and we have found our cell
                                     cell_found = cell_index;
@@ -1063,6 +1064,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                             while (n < local_dof_indices_2.size()) {
                                 system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
                                                   fe.shape_value(n, second_point_v) / (1 / sum_line));
+                                std::cout << "second_point : "<< fe.shape_value(n, second_point_v)<< std::endl;
                                 if (n < (dim + 1) * 4) {
                                     n = n + dim + 1;
                                 } else {
@@ -1420,13 +1422,13 @@ void DirectSteadyNavierStokes<dim>::newton_iteration(const double tolerance,
                   //current_res = newton_update.l2_norm();
 
                   std::cout  <<  "  - Residual:  " << current_res << std::endl;
-                  current_res = system_rhs.l2_norm();
+
                   assemble_rhs(first_step);
                   sharp_edge_V2(first_step);
                   //std::cout  <<  "  - Residual 2:  " << system_rhs.linfty_norm() << std::endl;
 
                   present_solution = evaluation_point;
-
+                  current_res = system_rhs.l2_norm();
                   last_vect-= present_solution;
                   //current_res = system_rhs.l2_norm();
                   //current_res = last_vect.l2_norm();

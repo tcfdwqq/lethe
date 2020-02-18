@@ -142,7 +142,7 @@ private:
   std::shared_ptr<TrilinosWrappers::PreconditionILU> ilu_preconditioner;
   std::shared_ptr<TrilinosWrappers::PreconditionAMG> amg_preconditioner;
   std::vector<std::vector<typename DoFHandler<dim>::active_cell_iterator>> vertices_to_cell;
-  const bool   SUPG        = true;
+  const bool   SUPG        = false;
   const double GLS_u_scale = 1;
   double radius=0.21;
   double radius_2=0.6;

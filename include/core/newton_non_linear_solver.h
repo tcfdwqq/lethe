@@ -70,8 +70,6 @@ NewtonNonLinearSolver<VectorType>::solve(
           solver->assemble_rhs(time_stepping_method);
           current_res = solver->system_rhs.l2_norm();
 
-
-
           if (this->params.verbosity != Parameters::Verbosity::quiet)
             {
               solver->pcout << "\t\talpha = " << std::setw(6) << alpha
