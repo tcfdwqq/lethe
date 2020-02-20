@@ -116,12 +116,16 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
     //define cell ieteator
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
+    /*typename DoFHandler<dim>::active_cell_iterator cell = this->dof_handler
+            .begin_active(),
+            endc = this->dof_handler.end();*/
 
     //define the minimal cell side length
     //double min_cell_d=(GridTools::minimal_cell_diameter(this->triangulation)*GridTools::minimal_cell_diameter(this->triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(this->triangulation)*GridTools::minimal_cell_diameter(this->triangulation)));
     //std::cout << "min cell dist: " << min_cell_d << std::endl;
 
     //loop on all the cell to define if the sharp edge cut them
+    //for (; cell != endc; ++cell)
     for (const auto &cell : cell_iterator) {
         if (cell->is_locally_owned()) {
             fe_values.reinit(cell);
@@ -180,6 +184,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                 try {
                                     //define the cell and check if the point is inside of the cell
                                     const auto &cell_3 = active_neighbors[cell_index];
+                                   // if (cell_3->is_locally_owned()) {
                                     const Point<dim, double> p_cell = immersed_map.transform_real_to_unit_cell(
                                             active_neighbors[cell_index], second_point);
                                     const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
@@ -190,6 +195,24 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                         cell_found = cell_index;
                                         break;
                                     }
+                                   // }
+                                    /*else {
+                                        std::cout << "neighbors cell not owned "<< std::endl;
+                                        const int proc_id=cell_3->subdomain_id();
+                                        std::cout << "proc id "<<proc_id << std::endl;
+                                            const Point<dim, double> p_cell = immersed_map.transform_real_to_unit_cell(
+                                                    active_neighbors[cell_index], second_point);
+                                            const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+                                            //std::cout << "second_point : "<< dist_2 << std::endl;
+                                            //define the cell and check if the point is inside of the cell
+                                            if (dist_2 == 0) {
+                                                //if the point is in this cell then the dist is equal to 0 and we have found our cell
+                                                cell_found = cell_index;
+                                                break;
+                                            }
+                                        std::cout << "got cell info " << std::endl;
+                                    }*/
+
                                 }
                                     // may cause error if the point is not in cell
                                 catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
@@ -198,11 +221,13 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
                             //we have or next cell need to complet the stencil and we define stuff around it
                             const auto &cell_2 = active_neighbors[cell_found];
+
                             //define the unit cell point for the 3rd point of our stencil for a interpolation
                             Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
                             Point<dim, double> second_point_v_2 = immersed_map.transform_real_to_unit_cell(cell_2,
                                                                                                            second_point);
                             cell_2->get_dof_indices(local_dof_indices_2);
+
                             //std::cout << "second_point : "<< second_point_v<< std::endl;
                             //std::cout << "second_point double : "<< second_point_v_2<< std::endl;
                             //std::cout << "second_point : "<< second_point_v<< std::endl;
@@ -366,6 +391,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
             }
         }
     }
+
+    std::cout << "sharp edge done "<< std::endl;
 }
 
 template <int dim>
@@ -1219,6 +1246,7 @@ GLSNavierStokesSharpSolver<dim>::assemble_matrix_and_rhs(
     vertices_cell_mapping();
     sharp_edge(true);
 
+
 }
 template <int dim>
 void
@@ -1265,6 +1293,9 @@ GLSNavierStokesSharpSolver<dim>::assemble_rhs(
                 Parameters::SimulationControl::TimeSteppingMethod::steady>();
     vertices_cell_mapping();
     sharp_edge(true);
+
+    std::cout << "sharp edge complitly done "<< std::endl;
+
 }
 
 template <int dim>
@@ -1275,8 +1306,6 @@ GLSNavierStokesSharpSolver<dim>::solve_linear_system(const bool initial_step,
 
   const double absolute_residual = this->nsparam.linearSolver.minimum_residual;
   const double relative_residual = this->nsparam.linearSolver.relative_residual;
-  vertices_cell_mapping();
-  sharp_edge(initial_step);
   if (this->nsparam.linearSolver.solver ==
       Parameters::LinearSolver::SolverType::gmres)
     solve_system_GMRES(initial_step,
@@ -1544,9 +1573,9 @@ GLSNavierStokesSharpSolver<dim>::solve()
 
   while (this->simulationControl.integrate())
     {
-      /*this->set_initial_condition(this->nsparam.initialCondition->type,
-                                    this->nsparam.restartParameters.restart);*/
-      clear_pressure();
+      this->set_initial_condition(this->nsparam.initialCondition->type,
+                                    this->nsparam.restartParameters.restart);
+      //clear_pressure();
       printTime(this->pcout, this->simulationControl);
       if (!this->simulationControl.firstIter())
         {
