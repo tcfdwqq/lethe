@@ -1037,7 +1037,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                         //define the unit cell point for the 3rd point of our stencil for a interpolation
                         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
                         cell_2->get_dof_indices(local_dof_indices_2);
-
+                        std::cout << "second_point : "<< second_point_v<< std::endl;
                         // define which dof is going to be redefine
                         unsigned int global_index_overrigth = local_dof_indices[l];
                             //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value
@@ -1064,7 +1064,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                             while (n < local_dof_indices_2.size()) {
                                 system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
                                                   fe.shape_value(n, second_point_v) / (1 / sum_line));
-                                std::cout << "second_point : "<< fe.shape_value(n, second_point_v)<< std::endl;
+
                                 if (n < (dim + 1) * 4) {
                                     n = n + dim + 1;
                                 } else {
