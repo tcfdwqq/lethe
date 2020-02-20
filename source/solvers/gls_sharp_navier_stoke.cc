@@ -75,7 +75,7 @@ void GLSNavierStokesSharpSolver<dim>::clear_pressure() {
 
         }
 
-    std::cout << "clear pressure done "<< std::endl;
+
 }
 
 template <int dim>
@@ -391,8 +391,6 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
             }
         }
     }
-
-    std::cout << "sharp edge done "<< std::endl;
 }
 
 template <int dim>
@@ -1293,8 +1291,7 @@ GLSNavierStokesSharpSolver<dim>::assemble_rhs(
                 Parameters::SimulationControl::TimeSteppingMethod::steady>();
     vertices_cell_mapping();
     sharp_edge(true);
-
-    std::cout << "sharp edge complitly done "<< std::endl;
+    
 
 }
 
