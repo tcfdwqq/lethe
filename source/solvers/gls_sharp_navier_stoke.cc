@@ -65,6 +65,18 @@ void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
         }
     }
 }
+template <int dim>
+void GLSNavierStokesSharpSolver<dim>::clear_pressure() {
+    for(unsigned int i=0;i < this->dof_handler.n_dofs(); ++i){
+    //for(unsigned int i=this->dof_handler.n_dofs()*dim/(dim+1);i < this->dof_handler.n_dofs(); ++i){
+            if (this->locally_owned_dofs.is_element(i)){
+                this->present_solution(i)=0;
+            }
+
+        }
+
+    std::cout << "clear pressure done "<< std::endl;
+}
 
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
@@ -1141,6 +1153,7 @@ template <int dim>
 void
 GLSNavierStokesSharpSolver<dim>::set_nodal_values()
 {
+
   const FEValuesExtractors::Vector velocities(0);
   const FEValuesExtractors::Scalar pressure(dim);
   const MappingQ<dim>              mapping(this->degreeVelocity_,
@@ -1531,14 +1544,17 @@ GLSNavierStokesSharpSolver<dim>::solve()
 
   while (this->simulationControl.integrate())
     {
-        this->set_initial_condition(this->nsparam.initialCondition->type,
-                                    this->nsparam.restartParameters.restart);
+      /*this->set_initial_condition(this->nsparam.initialCondition->type,
+                                    this->nsparam.restartParameters.restart);*/
+      clear_pressure();
       printTime(this->pcout, this->simulationControl);
       if (!this->simulationControl.firstIter())
         {
           NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
             refine_mesh();
+
         }
+
       this->iterate(this->simulationControl.firstIter());
 //   this->iterate(true);
       this->postprocess(false);

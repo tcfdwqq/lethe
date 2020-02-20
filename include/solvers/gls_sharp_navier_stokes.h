@@ -70,6 +70,9 @@ private:
   sharp_edge(const bool initial_step);
 
   void
+  clear_pressure();
+
+  void
   assemble_matrix_and_rhs(
     const Parameters::SimulationControl::TimeSteppingMethod
       time_stepping_method) override;
