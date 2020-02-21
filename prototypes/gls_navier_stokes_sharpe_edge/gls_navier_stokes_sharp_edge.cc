@@ -923,16 +923,16 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
 
     //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
-    const double center_x=0;
+    const double center_x=0.2;
     const double center_y=0;
-    const Point<dim> center_immersed;
+    const Point<dim> center_immersed(center_x,center_y);
     if (dim==2)
         const Point<dim> center_immersed(center_x,center_y);
     else if (dim==3)
         const Point<dim> center_immersed(center_x,center_y,center_x);
 
     std::vector<typename DoFHandler<dim>::active_cell_iterator> active_neighbors;
-
+    std::cout << "center immersed" << center_immersed << std::endl;
 
     //define a map to all dof and it's support point
     MappingQ1<dim> immersed_map;
@@ -993,12 +993,12 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                     //loops on the dof that are for vx or vy separatly
                     while (l < local_dof_indices.size()) {
                         //define the distance vector between the immersed boundary and the dof support point for each dof
-                        Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] - radius *
+                        Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]]-center_immersed - radius *
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed) /
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed).norm());
-
+                        std::cout << "vect_dist: " << vect_dist  << std::endl;
                         //define the other point for or 3 point stencil ( IB point, original dof and this point)
                         const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
                         //define the vertex associated with the dof
@@ -1037,7 +1037,6 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                         //define the unit cell point for the 3rd point of our stencil for a interpolation
                         Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
                         cell_2->get_dof_indices(local_dof_indices_2);
-                        std::cout << "second_point : "<< second_point_v<< std::endl;
                         // define which dof is going to be redefine
                         unsigned int global_index_overrigth = local_dof_indices[l];
                             //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value

@@ -160,7 +160,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                         //loops on the dof that are for vx or vy separatly
                         while (l < local_dof_indices.size()) {
                             //define the distance vector between the immersed boundary and the dof support point for each dof
-                            Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] - radius *
+                            Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]]-center_immersed - radius *
                                                                                                        (support_points[local_dof_indices[l]] -
                                                                                                         center_immersed) /
                                                                                                        (support_points[local_dof_indices[l]] -
@@ -195,24 +195,6 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                         cell_found = cell_index;
                                         break;
                                     }
-                                   // }
-                                    /*else {
-                                        std::cout << "neighbors cell not owned "<< std::endl;
-                                        const int proc_id=cell_3->subdomain_id();
-                                        std::cout << "proc id "<<proc_id << std::endl;
-                                            const Point<dim, double> p_cell = immersed_map.transform_real_to_unit_cell(
-                                                    active_neighbors[cell_index], second_point);
-                                            const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
-                                            //std::cout << "second_point : "<< dist_2 << std::endl;
-                                            //define the cell and check if the point is inside of the cell
-                                            if (dist_2 == 0) {
-                                                //if the point is in this cell then the dist is equal to 0 and we have found our cell
-                                                cell_found = cell_index;
-                                                break;
-                                            }
-                                        std::cout << "got cell info " << std::endl;
-                                    }*/
-
                                 }
                                     // may cause error if the point is not in cell
                                 catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
@@ -256,8 +238,16 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                 unsigned int n = k;
                                 // then the third point trough interpolation from the dof of the cell in which the third point is
                                 while (n < local_dof_indices_2.size()) {
-                                    this->system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
-                                                            this->fe.shape_value(n, second_point_v) / (1 / sum_line));
+                                    if(global_index_overrigth==local_dof_indices_2[n]) {
+                                        this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
+                                                                this->fe.shape_value(n, second_point_v) /
+                                                                (1 / sum_line) - 2 / (1 / sum_line));
+                                    }
+                                    else{
+                                        this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
+                                                                this->fe.shape_value(n, second_point_v) /
+                                                                (1 / sum_line) );
+                                    }
 
                                     if (n < (dim + 1) * 4) {
                                         n = n + dim + 1;
