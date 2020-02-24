@@ -46,6 +46,7 @@ void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
 {
     //map the vertex index to the cell that include that vertex used later in which cell a point falls in
     //vertices_to_cell is a vector of vectof of dof handler active cell iterator each element i of the vector is a vector of all the cell in contact with the vertex i
+    std::cout << "this MPI porcess start vertex mapping : "<< this->this_mpi_process<< std::endl;
     vertices_to_cell.clear();
     vertices_to_cell.resize(this->dof_handler.n_dofs()/(dim+1));
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
@@ -64,6 +65,7 @@ void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
             vertices_to_cell[v_index]=adjacent_3;
         }
     }
+    std::cout << "this MPI porcess finish vertex mapping : "<< this->this_mpi_process<< std::endl;
 }
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::clear_pressure() {
@@ -81,7 +83,7 @@ void GLSNavierStokesSharpSolver<dim>::clear_pressure() {
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     //This function define a immersed boundary base on the sharp edge method on a hyper_shere of dim 2 or 3
-    //std::cout << "sharp start  "<< std::endl;
+    std::cout << "this MPI porcess started sharp_edge : "<< this->this_mpi_process<< std::endl;
     //std::cout << "sharp edge :start ... "<< initial_step << std::endl;
     //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
@@ -161,7 +163,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                         unsigned int l = k;
 
                         //loops on the dof that are for vx or vy separatly
-                        while (l < local_dof_indices.size()) {
+                        //while (l < local_dof_indices.size()) {
+                        for (unsigned int l=k;l < local_dof_indices.size();l+=dim+1) {
                             if (dof_done(local_dof_indices[l]) ==0 & this->locally_owned_dofs.is_element(local_dof_indices[l])) {
                                 dof_done(local_dof_indices[l]) += 1;
                                 //std::cout << "local dof_done "<< dof_done(local_dof_indices[l])<< std::endl;
@@ -245,7 +248,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
                                     unsigned int n = k;
                                     // then the third point trough interpolation from the dof of the cell in which the third point is
-                                    while (n < local_dof_indices_2.size()) {
+                                    //while (n < local_dof_indices_2.size()) {
+                                    for (unsigned int n=k;n < local_dof_indices.size();n+=dim+1) {
                                         if (global_index_overrigth == local_dof_indices_2[n]) {
                                             this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
                                                                     this->fe.shape_value(n, second_point_v) /
@@ -256,11 +260,11 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                                     (1 / sum_line));
                                         }
 
-                                        if (n < (dim + 1) * 4) {
+                                        /*if (n < (dim + 1) * 4) {
                                             n = n + dim + 1;
                                         } else {
                                             n = n + dim;
-                                        }
+                                        }*/
                                     }
                                 } else {
                                     this->system_matrix.set(global_index_overrigth, global_index_overrigth,
@@ -292,11 +296,11 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
                             }
                                 // add index ( this is for P2 element when dof are not at the nodes but should be replace because rest of the code those not workj with that for the moment
-                                if (l < (dim + 1) * 4) {
+                                /*if (l < (dim + 1) * 4) {
                                     l = l + dim + 1;
                                 } else {
                                     l = l + dim;
-                                }
+                                }*/
 
                         }
                     }
@@ -383,15 +387,17 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                 l = l + dim;
                             }
                         }
-
                     }
                 }
             }
         }
     }
-    //std::cout << "dof_done "<< dof_done.linfty_norm()<< std::endl;
+    std::cout << "this MPI porcess waiting at barrier : "<< this->this_mpi_process<< std::endl;
+    MPI_Barrier(this->mpi_communicator);
+    std::cout << "barrier done"<< std::endl;
     //system_matrix.compress(VectorOperation::add);
     //this->system_rhs.compress(VectorOperation::add);
+    std::cout << "sharp edge done"<< std::endl;
 }
 
 template <int dim>
@@ -577,456 +583,459 @@ GLSNavierStokesSharpSolver<dim>::setup_dofs()
 
 template <int dim>
 template <bool                                              assemble_matrix,
-          Parameters::SimulationControl::TimeSteppingMethod scheme>
+        Parameters::SimulationControl::TimeSteppingMethod scheme>
 void
 GLSNavierStokesSharpSolver<dim>::assembleGLS()
 {
-  if (assemble_matrix)
-    system_matrix = 0;
-  this->system_rhs = 0;
+    std::cout << "this MPI porcess start matrix assemble : "<< this->this_mpi_process<< std::endl;
+    MPI_Barrier(this->mpi_communicator);
+    if (assemble_matrix)
+        system_matrix = 0;
+    this->system_rhs = 0;
 
-  double         viscosity_ = this->nsparam.physicalProperties.viscosity;
-  Function<dim> *l_forcing_function = this->forcing_function;
+    double         viscosity_ = this->nsparam.physicalProperties.viscosity;
+    Function<dim> *l_forcing_function = this->forcing_function;
 
-  QGauss<dim>                      quadrature_formula(this->degreeQuadrature_);
-  const MappingQ<dim>              mapping(this->degreeVelocity_,
-                              this->nsparam.femParameters.qmapping_all);
-  FEValues<dim>                    fe_values(mapping,
-                          this->fe,
-                          quadrature_formula,
-                          update_values | update_quadrature_points |
-                            update_JxW_values | update_gradients |
-                            update_hessians);
-  const unsigned int               dofs_per_cell = this->fe.dofs_per_cell;
-  const unsigned int               n_q_points    = quadrature_formula.size();
-  const FEValuesExtractors::Vector velocities(0);
-  const FEValuesExtractors::Scalar pressure(dim);
-  FullMatrix<double>               local_matrix(dofs_per_cell, dofs_per_cell);
-  Vector<double>                   local_rhs(dofs_per_cell);
-  std::vector<Vector<double>> rhs_force(n_q_points, Vector<double>(dim + 1));
-  std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-  std::vector<Tensor<1, dim>>          present_velocity_values(n_q_points);
-  std::vector<Tensor<2, dim>>          present_velocity_gradients(n_q_points);
-  std::vector<double>                  present_pressure_values(n_q_points);
-  std::vector<Tensor<1, dim>>          present_pressure_gradients(n_q_points);
-  std::vector<Tensor<1, dim>>          present_velocity_laplacians(n_q_points);
-  std::vector<Tensor<2, dim>>          present_velocity_hess(n_q_points);
+    QGauss<dim>                      quadrature_formula(this->degreeQuadrature_);
+    const MappingQ<dim>              mapping(this->degreeVelocity_,
+                                             this->nsparam.femParameters.qmapping_all);
+    FEValues<dim>                    fe_values(mapping,
+                                               this->fe,
+                                               quadrature_formula,
+                                               update_values | update_quadrature_points |
+                                               update_JxW_values | update_gradients |
+                                               update_hessians);
+    const unsigned int               dofs_per_cell = this->fe.dofs_per_cell;
+    const unsigned int               n_q_points    = quadrature_formula.size();
+    const FEValuesExtractors::Vector velocities(0);
+    const FEValuesExtractors::Scalar pressure(dim);
+    FullMatrix<double>               local_matrix(dofs_per_cell, dofs_per_cell);
+    Vector<double>                   local_rhs(dofs_per_cell);
+    std::vector<Vector<double>> rhs_force(n_q_points, Vector<double>(dim + 1));
+    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+    std::vector<Tensor<1, dim>>          present_velocity_values(n_q_points);
+    std::vector<Tensor<2, dim>>          present_velocity_gradients(n_q_points);
+    std::vector<double>                  present_pressure_values(n_q_points);
+    std::vector<Tensor<1, dim>>          present_pressure_gradients(n_q_points);
+    std::vector<Tensor<1, dim>>          present_velocity_laplacians(n_q_points);
+    std::vector<Tensor<2, dim>>          present_velocity_hess(n_q_points);
 
-  Tensor<1, dim> force;
+    Tensor<1, dim> force;
 
-  std::vector<double>         div_phi_u(dofs_per_cell);
-  std::vector<Tensor<1, dim>> phi_u(dofs_per_cell);
-  std::vector<Tensor<3, dim>> hess_phi_u(dofs_per_cell);
-  std::vector<Tensor<1, dim>> laplacian_phi_u(dofs_per_cell);
-  std::vector<Tensor<2, dim>> grad_phi_u(dofs_per_cell);
-  std::vector<double>         phi_p(dofs_per_cell);
-  std::vector<Tensor<1, dim>> grad_phi_p(dofs_per_cell);
+    std::vector<double>         div_phi_u(dofs_per_cell);
+    std::vector<Tensor<1, dim>> phi_u(dofs_per_cell);
+    std::vector<Tensor<3, dim>> hess_phi_u(dofs_per_cell);
+    std::vector<Tensor<1, dim>> laplacian_phi_u(dofs_per_cell);
+    std::vector<Tensor<2, dim>> grad_phi_u(dofs_per_cell);
+    std::vector<double>         phi_p(dofs_per_cell);
+    std::vector<Tensor<1, dim>> grad_phi_p(dofs_per_cell);
 
-  // Values at previous time step for transient schemes
-  std::vector<Tensor<1, dim>> p1_velocity_values(n_q_points);
-  std::vector<Tensor<1, dim>> p2_velocity_values(n_q_points);
-  std::vector<Tensor<1, dim>> p3_velocity_values(n_q_points);
+    // Values at previous time step for transient schemes
+    std::vector<Tensor<1, dim>> p1_velocity_values(n_q_points);
+    std::vector<Tensor<1, dim>> p2_velocity_values(n_q_points);
+    std::vector<Tensor<1, dim>> p3_velocity_values(n_q_points);
 
-  // Time steps and inverse time steps which is used for numerous calculations
-  const double dt  = this->simulationControl.getTimeSteps()[0];
-  const double sdt = 1. / dt;
+    // Time steps and inverse time steps which is used for numerous calculations
+    const double dt  = this->simulationControl.getTimeSteps()[0];
+    const double sdt = 1. / dt;
 
-  // Vector for the BDF coefficients
-  // The coefficients are stored in the following fashion :
-  // 0 - n+1
-  // 1 - n
-  // 2 - n-1
-  // 3 - n-2
-  Vector<double> bdf_coefs;
-  if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf1)
-    bdf_coefs = bdf_coefficients(1, this->simulationControl.getTimeSteps());
+    // Vector for the BDF coefficients
+    // The coefficients are stored in the following fashion :
+    // 0 - n+1
+    // 1 - n
+    // 2 - n-1
+    // 3 - n-2
+    Vector<double> bdf_coefs;
+    if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf1)
+        bdf_coefs = bdf_coefficients(1, this->simulationControl.getTimeSteps());
 
-  if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf2)
-    bdf_coefs = bdf_coefficients(2, this->simulationControl.getTimeSteps());
+    if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf2)
+        bdf_coefs = bdf_coefficients(2, this->simulationControl.getTimeSteps());
 
-  if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf3)
-    bdf_coefs = bdf_coefficients(3, this->simulationControl.getTimeSteps());
+    if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf3)
+        bdf_coefs = bdf_coefficients(3, this->simulationControl.getTimeSteps());
 
-  // Matrix of coefficients for the SDIRK methods
-  // The lines store the information required for each step
-  // Column 0 always refer to outcome of the step that is being calculated
-  // Column 1 always refer to step n
-  // Column 2+ refer to intermediary steps
-  FullMatrix<double> sdirk_coefs;
-  if (is_sdirk2(scheme))
-    sdirk_coefs = sdirk_coefficients(2, dt);
+    // Matrix of coefficients for the SDIRK methods
+    // The lines store the information required for each step
+    // Column 0 always refer to outcome of the step that is being calculated
+    // Column 1 always refer to step n
+    // Column 2+ refer to intermediary steps
+    FullMatrix<double> sdirk_coefs;
+    if (is_sdirk2(scheme))
+        sdirk_coefs = sdirk_coefficients(2, dt);
 
-  if (is_sdirk3(scheme))
-    sdirk_coefs = sdirk_coefficients(3, dt);
+    if (is_sdirk3(scheme))
+        sdirk_coefs = sdirk_coefficients(3, dt);
 
 
 
-  // Element size
-  double h;
+    // Element size
+    double h;
 
-  typename DoFHandler<dim>::active_cell_iterator cell = this->dof_handler
-                                                          .begin_active(),
-                                                 endc = this->dof_handler.end();
-  for (; cell != endc; ++cell)
+    typename DoFHandler<dim>::active_cell_iterator cell = this->dof_handler
+            .begin_active(),
+            endc = this->dof_handler.end();
+    for (; cell != endc; ++cell)
     {
-      if (cell->is_locally_owned())
+        if (cell->is_locally_owned())
         {
-          fe_values.reinit(cell);
+            fe_values.reinit(cell);
 
-          if (dim == 2)
-            h = std::sqrt(4. * cell->measure() / M_PI) / this->degreeVelocity_;
-          else if (dim == 3)
-            h =
-              pow(6 * cell->measure() / M_PI, 1. / 3.) / this->degreeVelocity_;
+            if (dim == 2)
+                h = std::sqrt(4. * cell->measure() / M_PI) / this->degreeVelocity_;
+            else if (dim == 3)
+                h =
+                        pow(6 * cell->measure() / M_PI, 1. / 3.) / this->degreeVelocity_;
 
-          local_matrix = 0;
-          local_rhs    = 0;
+            local_matrix = 0;
+            local_rhs    = 0;
 
-          // Gather velocity (values, gradient and laplacian)
-          fe_values[velocities].get_function_values(this->evaluation_point,
-                                                    present_velocity_values);
-          fe_values[velocities].get_function_gradients(
-            this->evaluation_point, present_velocity_gradients);
-          fe_values[velocities].get_function_laplacians(
-            this->evaluation_point, present_velocity_laplacians);
+            // Gather velocity (values, gradient and laplacian)
+            fe_values[velocities].get_function_values(this->evaluation_point,
+                                                      present_velocity_values);
+            fe_values[velocities].get_function_gradients(
+                    this->evaluation_point, present_velocity_gradients);
+            fe_values[velocities].get_function_laplacians(
+                    this->evaluation_point, present_velocity_laplacians);
 
-          // Gather pressure (values, gradient)
-          fe_values[pressure].get_function_values(this->evaluation_point,
-                                                  present_pressure_values);
-          fe_values[pressure].get_function_gradients(
-            this->evaluation_point, present_pressure_gradients);
+            // Gather pressure (values, gradient)
+            fe_values[pressure].get_function_values(this->evaluation_point,
+                                                    present_pressure_values);
+            fe_values[pressure].get_function_gradients(
+                    this->evaluation_point, present_pressure_gradients);
 
 
-          // Calculate forcing term if there is a forcing function
-          if (l_forcing_function)
-            l_forcing_function->vector_value_list(
-              fe_values.get_quadrature_points(), rhs_force);
+            // Calculate forcing term if there is a forcing function
+            if (l_forcing_function)
+                l_forcing_function->vector_value_list(
+                        fe_values.get_quadrature_points(), rhs_force);
 
-          // Gather the previous time steps depending on the number of stages
-          // of the time integration scheme
-          if (scheme !=
-              Parameters::SimulationControl::TimeSteppingMethod::steady)
-            fe_values[velocities].get_function_values(this->solution_m1,
-                                                      p1_velocity_values);
+            // Gather the previous time steps depending on the number of stages
+            // of the time integration scheme
+            if (scheme !=
+                Parameters::SimulationControl::TimeSteppingMethod::steady)
+                fe_values[velocities].get_function_values(this->solution_m1,
+                                                          p1_velocity_values);
 
-          if (time_stepping_method_has_two_stages(scheme))
-            fe_values[velocities].get_function_values(this->solution_m2,
-                                                      p2_velocity_values);
+            if (time_stepping_method_has_two_stages(scheme))
+                fe_values[velocities].get_function_values(this->solution_m2,
+                                                          p2_velocity_values);
 
-          if (time_stepping_method_has_three_stages(scheme))
-            fe_values[velocities].get_function_values(this->solution_m3,
-                                                      p3_velocity_values);
+            if (time_stepping_method_has_three_stages(scheme))
+                fe_values[velocities].get_function_values(this->solution_m3,
+                                                          p3_velocity_values);
 
-          // Loop over the quadrature points
-          for (unsigned int q = 0; q < n_q_points; ++q)
+            // Loop over the quadrature points
+            for (unsigned int q = 0; q < n_q_points; ++q)
             {
-              // Calculation of the magnitude of the velocity for the
-              // stabilization parameter
-              const double u_mag = std::max(present_velocity_values[q].norm(),
-                                            1e-12 * GLS_u_scale);
+                // Calculation of the magnitude of the velocity for the
+                // stabilization parameter
+                const double u_mag = std::max(present_velocity_values[q].norm(),
+                                              1e-12 * GLS_u_scale);
 
-              // Calculation of the GLS stabilization parameter. The
-              // stabilization parameter used is different if the simulation is
-              // steady or unsteady. In the unsteady case it includes the value
-              // of the time-step
-              double tau;
-              if (scheme ==
-                  Parameters::SimulationControl::TimeSteppingMethod::steady)
-                tau = 1. / std::sqrt(std::pow(2. * u_mag / h, 2) +
-                                     9 * std::pow(4 * viscosity_ / (h * h), 2));
-              else
-                tau = 1. /
-                      std::sqrt(std::pow(sdt, 2) + std::pow(2. * u_mag / h, 2) +
-                                9 * std::pow(4 * viscosity_ / (h * h), 2));
+                // Calculation of the GLS stabilization parameter. The
+                // stabilization parameter used is different if the simulation is
+                // steady or unsteady. In the unsteady case it includes the value
+                // of the time-step
+                double tau;
+                if (scheme ==
+                    Parameters::SimulationControl::TimeSteppingMethod::steady)
+                    tau = 1. / std::sqrt(std::pow(2. * u_mag / h, 2) +
+                                         9 * std::pow(4 * viscosity_ / (h * h), 2));
+                else
+                    tau = 1. /
+                          std::sqrt(std::pow(sdt, 2) + std::pow(2. * u_mag / h, 2) +
+                                    9 * std::pow(4 * viscosity_ / (h * h), 2));
 
-              // Gather the shape functions, their gradient and their laplacian
-              // for the velocity and the pressure
-              for (unsigned int k = 0; k < dofs_per_cell; ++k)
+                // Gather the shape functions, their gradient and their laplacian
+                // for the velocity and the pressure
+                for (unsigned int k = 0; k < dofs_per_cell; ++k)
                 {
-                  div_phi_u[k]  = fe_values[velocities].divergence(k, q);
-                  grad_phi_u[k] = fe_values[velocities].gradient(k, q);
-                  phi_u[k]      = fe_values[velocities].value(k, q);
-                  hess_phi_u[k] = fe_values[velocities].hessian(k, q);
-                  phi_p[k]      = fe_values[pressure].value(k, q);
-                  grad_phi_p[k] = fe_values[pressure].gradient(k, q);
+                    div_phi_u[k]  = fe_values[velocities].divergence(k, q);
+                    grad_phi_u[k] = fe_values[velocities].gradient(k, q);
+                    phi_u[k]      = fe_values[velocities].value(k, q);
+                    hess_phi_u[k] = fe_values[velocities].hessian(k, q);
+                    phi_p[k]      = fe_values[pressure].value(k, q);
+                    grad_phi_p[k] = fe_values[pressure].gradient(k, q);
 
-                  for (int d = 0; d < dim; ++d)
-                    laplacian_phi_u[k][d] = trace(hess_phi_u[k][d]);
+                    for (int d = 0; d < dim; ++d)
+                        laplacian_phi_u[k][d] = trace(hess_phi_u[k][d]);
                 }
 
-              // Establish the force vector
-              for (int i = 0; i < dim; ++i)
+                // Establish the force vector
+                for (int i = 0; i < dim; ++i)
                 {
-                  const unsigned int component_i =
-                    this->fe.system_to_component_index(i).first;
-                  force[i] = rhs_force[q](component_i);
+                    const unsigned int component_i =
+                            this->fe.system_to_component_index(i).first;
+                    force[i] = rhs_force[q](component_i);
                 }
 
-              // Calculate the divergence of the velocity
-              double present_velocity_divergence =
-                trace(present_velocity_gradients[q]);
+                // Calculate the divergence of the velocity
+                double present_velocity_divergence =
+                        trace(present_velocity_gradients[q]);
 
-              // Calculate the strong residual for GLS stabilization
-              auto strong_residual =
-                present_velocity_gradients[q] * present_velocity_values[q] +
-                present_pressure_gradients[q] -
-                viscosity_ * present_velocity_laplacians[q] - force;
+                // Calculate the strong residual for GLS stabilization
+                auto strong_residual =
+                        present_velocity_gradients[q] * present_velocity_values[q] +
+                        present_pressure_gradients[q] -
+                        viscosity_ * present_velocity_laplacians[q] - force;
 
-              /* Adjust the strong residual in cases where the scheme is
-               transient.
-               The BDF schemes require values at previous time steps which are
-               stored in the p1, p2 and p3 vectors. The SDIRK scheme require the
-               values at the different stages, which are also stored in the same
-               arrays.
-               */
+                /* Adjust the strong residual in cases where the scheme is
+                 transient.
+                 The BDF schemes require values at previous time steps which are
+                 stored in the p1, p2 and p3 vectors. The SDIRK scheme require the
+                 values at the different stages, which are also stored in the same
+                 arrays.
+                 */
 
-              if (scheme ==
-                  Parameters::SimulationControl::TimeSteppingMethod::bdf1)
-                strong_residual += bdf_coefs[0] * present_velocity_values[q] +
-                                   bdf_coefs[1] * p1_velocity_values[q];
+                if (scheme ==
+                    Parameters::SimulationControl::TimeSteppingMethod::bdf1)
+                    strong_residual += bdf_coefs[0] * present_velocity_values[q] +
+                                       bdf_coefs[1] * p1_velocity_values[q];
 
-              if (scheme ==
-                  Parameters::SimulationControl::TimeSteppingMethod::bdf2)
-                strong_residual += bdf_coefs[0] * present_velocity_values[q] +
-                                   bdf_coefs[1] * p1_velocity_values[q] +
-                                   bdf_coefs[2] * p2_velocity_values[q];
+                if (scheme ==
+                    Parameters::SimulationControl::TimeSteppingMethod::bdf2)
+                    strong_residual += bdf_coefs[0] * present_velocity_values[q] +
+                                       bdf_coefs[1] * p1_velocity_values[q] +
+                                       bdf_coefs[2] * p2_velocity_values[q];
 
-              if (scheme ==
-                  Parameters::SimulationControl::TimeSteppingMethod::bdf3)
-                strong_residual += bdf_coefs[0] * present_velocity_values[q] +
-                                   bdf_coefs[1] * p1_velocity_values[q] +
-                                   bdf_coefs[2] * p2_velocity_values[q] +
-                                   bdf_coefs[3] * p3_velocity_values[q];
+                if (scheme ==
+                    Parameters::SimulationControl::TimeSteppingMethod::bdf3)
+                    strong_residual += bdf_coefs[0] * present_velocity_values[q] +
+                                       bdf_coefs[1] * p1_velocity_values[q] +
+                                       bdf_coefs[2] * p2_velocity_values[q] +
+                                       bdf_coefs[3] * p3_velocity_values[q];
 
 
-              if (is_sdirk_step1(scheme))
-                strong_residual +=
-                  sdirk_coefs[0][0] * present_velocity_values[q] +
-                  sdirk_coefs[0][1] * p1_velocity_values[q];
+                if (is_sdirk_step1(scheme))
+                    strong_residual +=
+                            sdirk_coefs[0][0] * present_velocity_values[q] +
+                            sdirk_coefs[0][1] * p1_velocity_values[q];
 
-              if (is_sdirk_step2(scheme))
+                if (is_sdirk_step2(scheme))
                 {
-                  strong_residual +=
-                    sdirk_coefs[1][0] * present_velocity_values[q] +
-                    sdirk_coefs[1][1] * p1_velocity_values[q] +
-                    sdirk_coefs[1][2] * p2_velocity_values[q];
+                    strong_residual +=
+                            sdirk_coefs[1][0] * present_velocity_values[q] +
+                            sdirk_coefs[1][1] * p1_velocity_values[q] +
+                            sdirk_coefs[1][2] * p2_velocity_values[q];
                 }
 
-              if (is_sdirk_step3(scheme))
+                if (is_sdirk_step3(scheme))
                 {
-                  strong_residual +=
-                    sdirk_coefs[2][0] * present_velocity_values[q] +
-                    sdirk_coefs[2][1] * p1_velocity_values[q] +
-                    sdirk_coefs[2][2] * p2_velocity_values[q] +
-                    sdirk_coefs[2][3] * p3_velocity_values[q];
+                    strong_residual +=
+                            sdirk_coefs[2][0] * present_velocity_values[q] +
+                            sdirk_coefs[2][1] * p1_velocity_values[q] +
+                            sdirk_coefs[2][2] * p2_velocity_values[q] +
+                            sdirk_coefs[2][3] * p3_velocity_values[q];
                 }
 
-              // Matrix assembly
-              if (assemble_matrix)
+                // Matrix assembly
+                if (assemble_matrix)
                 {
-                  // We loop over the column first to prevent recalculation of
-                  // the strong jacobian in the inner loop
-                  for (unsigned int j = 0; j < dofs_per_cell; ++j)
+                    // We loop over the column first to prevent recalculation of
+                    // the strong jacobian in the inner loop
+                    for (unsigned int j = 0; j < dofs_per_cell; ++j)
                     {
-                      auto strong_jac =
-                        (present_velocity_gradients[q] * phi_u[j] +
-                         grad_phi_u[j] * present_velocity_values[q] +
-                         grad_phi_p[j] - viscosity_ * laplacian_phi_u[j]);
+                        auto strong_jac =
+                                (present_velocity_gradients[q] * phi_u[j] +
+                                 grad_phi_u[j] * present_velocity_values[q] +
+                                 grad_phi_p[j] - viscosity_ * laplacian_phi_u[j]);
 
-                      if (is_bdf(scheme))
-                        strong_jac += phi_u[j] * bdf_coefs[0];
-                      if (is_sdirk(scheme))
-                        strong_jac += phi_u[j] * sdirk_coefs[0][0];
+                        if (is_bdf(scheme))
+                            strong_jac += phi_u[j] * bdf_coefs[0];
+                        if (is_sdirk(scheme))
+                            strong_jac += phi_u[j] * sdirk_coefs[0][0];
 
-                      for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i)
                         {
-                          local_matrix(i, j) +=
-                            (
-                              // Momentum terms
-                              viscosity_ *
-                                scalar_product(grad_phi_u[j], grad_phi_u[i]) +
-                              present_velocity_gradients[q] * phi_u[j] *
-                                phi_u[i] +
-                              grad_phi_u[j] * present_velocity_values[q] *
-                                phi_u[i] -
-                              div_phi_u[i] * phi_p[j] +
-                              // Continuity
-                              phi_p[i] * div_phi_u[j]) *
-                            fe_values.JxW(q);
+                            local_matrix(i, j) +=
+                                    (
+                                            // Momentum terms
+                                            viscosity_ *
+                                            scalar_product(grad_phi_u[j], grad_phi_u[i]) +
+                                            present_velocity_gradients[q] * phi_u[j] *
+                                            phi_u[i] +
+                                            grad_phi_u[j] * present_velocity_values[q] *
+                                            phi_u[i] -
+                                            div_phi_u[i] * phi_p[j] +
+                                            // Continuity
+                                            phi_p[i] * div_phi_u[j]) *
+                                    fe_values.JxW(q);
 
-                          // Mass matrix
-                          if (is_bdf(scheme))
-                            local_matrix(i, j) += phi_u[j] * phi_u[i] *
-                                                  bdf_coefs[0] *
-                                                  fe_values.JxW(q);
+                            // Mass matrix
+                            if (is_bdf(scheme))
+                                local_matrix(i, j) += phi_u[j] * phi_u[i] *
+                                                      bdf_coefs[0] *
+                                                      fe_values.JxW(q);
 
-                          if (is_sdirk(scheme))
-                            local_matrix(i, j) += phi_u[j] * phi_u[i] *
-                                                  sdirk_coefs[0][0] *
-                                                  fe_values.JxW(q);
+                            if (is_sdirk(scheme))
+                                local_matrix(i, j) += phi_u[j] * phi_u[i] *
+                                                      sdirk_coefs[0][0] *
+                                                      fe_values.JxW(q);
 
-                          // PSPG GLS term
-                          local_matrix(i, j) +=
-                            tau * strong_jac * grad_phi_p[i] * fe_values.JxW(q);
+                            // PSPG GLS term
+                            local_matrix(i, j) +=
+                                    tau * strong_jac * grad_phi_p[i] * fe_values.JxW(q);
 
 
-                          // PSPG TAU term is currently disabled because it does
-                          // not alter the matrix sufficiently
-                          // local_matrix(i, j) +=
-                          //  -tau * tau * tau * 4 / h / h *
-                          //  (present_velocity_values[q] * phi_u[j]) *
-                          //  strong_residual * grad_phi_p[i] *
-                          //  fe_values.JxW(q);
+                            // PSPG TAU term is currently disabled because it does
+                            // not alter the matrix sufficiently
+                            // local_matrix(i, j) +=
+                            //  -tau * tau * tau * 4 / h / h *
+                            //  (present_velocity_values[q] * phi_u[j]) *
+                            //  strong_residual * grad_phi_p[i] *
+                            //  fe_values.JxW(q);
 
-                          // Jacobian is currently incomplete
-                          if (SUPG)
+                            // Jacobian is currently incomplete
+                            if (SUPG)
                             {
-                              local_matrix(i, j) +=
-                                tau *
-                                (strong_jac * (grad_phi_u[i] *
-                                               present_velocity_values[q]) +
-                                 strong_residual * (grad_phi_u[i] * phi_u[j])) *
-                                fe_values.JxW(q);
+                                local_matrix(i, j) +=
+                                        tau *
+                                        (strong_jac * (grad_phi_u[i] *
+                                                       present_velocity_values[q]) +
+                                         strong_residual * (grad_phi_u[i] * phi_u[j])) *
+                                        fe_values.JxW(q);
 
-                              // SUPG TAU term is currently disabled because it
-                              // does not alter the matrix sufficiently
-                              // local_matrix(i, j)
-                              // +=
-                              //   -strong_residual
-                              //   * (grad_phi_u[i]
-                              //   *
-                              //   present_velocity_values[q])
-                              //   * tau * tau *
-                              //   tau * 4 / h / h
-                              //   *
-                              //   (present_velocity_values[q]
-                              //   * phi_u[j]) *
-                              //   fe_values.JxW(q);
+                                // SUPG TAU term is currently disabled because it
+                                // does not alter the matrix sufficiently
+                                // local_matrix(i, j)
+                                // +=
+                                //   -strong_residual
+                                //   * (grad_phi_u[i]
+                                //   *
+                                //   present_velocity_values[q])
+                                //   * tau * tau *
+                                //   tau * 4 / h / h
+                                //   *
+                                //   (present_velocity_values[q]
+                                //   * phi_u[j]) *
+                                //   fe_values.JxW(q);
                             }
                         }
                     }
                 }
 
-              // Assembly of the right-hand side
-              for (unsigned int i = 0; i < dofs_per_cell; ++i)
+                // Assembly of the right-hand side
+                for (unsigned int i = 0; i < dofs_per_cell; ++i)
                 {
-                  // Navier-Stokes Residual
-                  local_rhs(i) +=
-                    (
-                      // Momentum
-                      -viscosity_ *
-                        scalar_product(present_velocity_gradients[q],
-                                       grad_phi_u[i]) -
-                      present_velocity_gradients[q] *
-                        present_velocity_values[q] * phi_u[i] +
-                      present_pressure_values[q] * div_phi_u[i] +
-                      force * phi_u[i] -
-                      // Continuity
-                      present_velocity_divergence * phi_p[i]) *
-                    fe_values.JxW(q);
+                    // Navier-Stokes Residual
+                    local_rhs(i) +=
+                            (
+                                    // Momentum
+                                    -viscosity_ *
+                                    scalar_product(present_velocity_gradients[q],
+                                                   grad_phi_u[i]) -
+                                    present_velocity_gradients[q] *
+                                    present_velocity_values[q] * phi_u[i] +
+                                    present_pressure_values[q] * div_phi_u[i] +
+                                    force * phi_u[i] -
+                                    // Continuity
+                                    present_velocity_divergence * phi_p[i]) *
+                            fe_values.JxW(q);
 
-                  // Residual associated with BDF schemes
-                  if (scheme ==
-                      Parameters::SimulationControl::TimeSteppingMethod::bdf1)
-                    local_rhs(i) -=
-                      bdf_coefs[0] *
-                      (present_velocity_values[q] - p1_velocity_values[q]) *
-                      phi_u[i] * fe_values.JxW(q);
+                    // Residual associated with BDF schemes
+                    if (scheme ==
+                        Parameters::SimulationControl::TimeSteppingMethod::bdf1)
+                        local_rhs(i) -=
+                                bdf_coefs[0] *
+                                (present_velocity_values[q] - p1_velocity_values[q]) *
+                                phi_u[i] * fe_values.JxW(q);
 
-                  if (scheme ==
-                      Parameters::SimulationControl::TimeSteppingMethod::bdf2)
-                    local_rhs(i) -=
-                      (bdf_coefs[0] * (present_velocity_values[q] * phi_u[i]) +
-                       bdf_coefs[1] * (p1_velocity_values[q] * phi_u[i]) +
-                       bdf_coefs[2] * (p2_velocity_values[q] * phi_u[i])) *
-                      fe_values.JxW(q);
+                    if (scheme ==
+                        Parameters::SimulationControl::TimeSteppingMethod::bdf2)
+                        local_rhs(i) -=
+                                (bdf_coefs[0] * (present_velocity_values[q] * phi_u[i]) +
+                                 bdf_coefs[1] * (p1_velocity_values[q] * phi_u[i]) +
+                                 bdf_coefs[2] * (p2_velocity_values[q] * phi_u[i])) *
+                                fe_values.JxW(q);
 
-                  if (scheme ==
-                      Parameters::SimulationControl::TimeSteppingMethod::bdf3)
-                    local_rhs(i) -=
-                      (bdf_coefs[0] * (present_velocity_values[q] * phi_u[i]) +
-                       bdf_coefs[1] * (p1_velocity_values[q] * phi_u[i]) +
-                       bdf_coefs[2] * (p2_velocity_values[q] * phi_u[i]) +
-                       bdf_coefs[3] * (p3_velocity_values[q] * phi_u[i])) *
-                      fe_values.JxW(q);
+                    if (scheme ==
+                        Parameters::SimulationControl::TimeSteppingMethod::bdf3)
+                        local_rhs(i) -=
+                                (bdf_coefs[0] * (present_velocity_values[q] * phi_u[i]) +
+                                 bdf_coefs[1] * (p1_velocity_values[q] * phi_u[i]) +
+                                 bdf_coefs[2] * (p2_velocity_values[q] * phi_u[i]) +
+                                 bdf_coefs[3] * (p3_velocity_values[q] * phi_u[i])) *
+                                fe_values.JxW(q);
 
-                  // Residuals associated with SDIRK schemes
-                  if (is_sdirk_step1(scheme))
-                    local_rhs(i) -=
-                      (sdirk_coefs[0][0] *
-                         (present_velocity_values[q] * phi_u[i]) +
-                       sdirk_coefs[0][1] * (p1_velocity_values[q] * phi_u[i])) *
-                      fe_values.JxW(q);
+                    // Residuals associated with SDIRK schemes
+                    if (is_sdirk_step1(scheme))
+                        local_rhs(i) -=
+                                (sdirk_coefs[0][0] *
+                                 (present_velocity_values[q] * phi_u[i]) +
+                                 sdirk_coefs[0][1] * (p1_velocity_values[q] * phi_u[i])) *
+                                fe_values.JxW(q);
 
-                  if (is_sdirk_step2(scheme))
+                    if (is_sdirk_step2(scheme))
                     {
-                      local_rhs(i) -=
-                        (sdirk_coefs[1][0] *
-                           (present_velocity_values[q] * phi_u[i]) +
-                         sdirk_coefs[1][1] *
-                           (p1_velocity_values[q] * phi_u[i]) +
-                         sdirk_coefs[1][2] *
-                           (p2_velocity_values[q] * phi_u[i])) *
-                        fe_values.JxW(q);
+                        local_rhs(i) -=
+                                (sdirk_coefs[1][0] *
+                                 (present_velocity_values[q] * phi_u[i]) +
+                                 sdirk_coefs[1][1] *
+                                 (p1_velocity_values[q] * phi_u[i]) +
+                                 sdirk_coefs[1][2] *
+                                 (p2_velocity_values[q] * phi_u[i])) *
+                                fe_values.JxW(q);
                     }
 
-                  if (is_sdirk_step3(scheme))
+                    if (is_sdirk_step3(scheme))
                     {
-                      local_rhs(i) -=
-                        (sdirk_coefs[2][0] *
-                           (present_velocity_values[q] * phi_u[i]) +
-                         sdirk_coefs[2][1] *
-                           (p1_velocity_values[q] * phi_u[i]) +
-                         sdirk_coefs[2][2] *
-                           (p2_velocity_values[q] * phi_u[i]) +
-                         sdirk_coefs[2][3] *
-                           (p3_velocity_values[q] * phi_u[i])) *
-                        fe_values.JxW(q);
+                        local_rhs(i) -=
+                                (sdirk_coefs[2][0] *
+                                 (present_velocity_values[q] * phi_u[i]) +
+                                 sdirk_coefs[2][1] *
+                                 (p1_velocity_values[q] * phi_u[i]) +
+                                 sdirk_coefs[2][2] *
+                                 (p2_velocity_values[q] * phi_u[i]) +
+                                 sdirk_coefs[2][3] *
+                                 (p3_velocity_values[q] * phi_u[i])) *
+                                fe_values.JxW(q);
                     }
 
-                  // PSPG GLS term
-                  local_rhs(i) +=
-                    -tau * (strong_residual * grad_phi_p[i]) * fe_values.JxW(q);
+                    // PSPG GLS term
+                    local_rhs(i) +=
+                            -tau * (strong_residual * grad_phi_p[i]) * fe_values.JxW(q);
 
-                  // SUPG GLS term
-                  if (SUPG)
+                    // SUPG GLS term
+                    if (SUPG)
                     {
-                      local_rhs(i) +=
-                        -tau *
-                        (strong_residual *
-                         (grad_phi_u[i] * present_velocity_values[q])) *
-                        fe_values.JxW(q);
+                        local_rhs(i) +=
+                                -tau *
+                                (strong_residual *
+                                 (grad_phi_u[i] * present_velocity_values[q])) *
+                                fe_values.JxW(q);
                     }
                 }
             }
 
-          cell->get_dof_indices(local_dof_indices);
+            cell->get_dof_indices(local_dof_indices);
 
-          // The non-linear solver assumes that the nonzero constraints have
-          // already been applied to the solution
-          const AffineConstraints<double> &constraints_used =
-            this->zero_constraints;
-          // initial_step ? nonzero_constraints : zero_constraints;
-          if (assemble_matrix)
+            // The non-linear solver assumes that the nonzero constraints have
+            // already been applied to the solution
+            const AffineConstraints<double> &constraints_used =
+                    this->zero_constraints;
+            // initial_step ? nonzero_constraints : zero_constraints;
+            if (assemble_matrix)
             {
-              constraints_used.distribute_local_to_global(local_matrix,
-                                                          local_rhs,
-                                                          local_dof_indices,
-                                                          system_matrix,
-                                                          this->system_rhs);
+                constraints_used.distribute_local_to_global(local_matrix,
+                                                            local_rhs,
+                                                            local_dof_indices,
+                                                            system_matrix,
+                                                            this->system_rhs);
             }
-          else
+            else
             {
-              constraints_used.distribute_local_to_global(local_rhs,
-                                                          local_dof_indices,
-                                                          this->system_rhs);
+                constraints_used.distribute_local_to_global(local_rhs,
+                                                            local_dof_indices,
+                                                            this->system_rhs);
             }
         }
     }
-  if (assemble_matrix)
-    system_matrix.compress(VectorOperation::add);
-  this->system_rhs.compress(VectorOperation::add);
-
+    std::cout << "this MPI porcess finish matrix assemble and start compress : "<< this->this_mpi_process<< std::endl;
+    if (assemble_matrix)
+        system_matrix.compress(VectorOperation::add);
+    this->system_rhs.compress(VectorOperation::add);
+    std::cout << "this MPI porcess finish compress : "<< this->this_mpi_process<< std::endl;
 }
 
 /**

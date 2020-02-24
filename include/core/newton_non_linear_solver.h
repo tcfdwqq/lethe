@@ -43,8 +43,8 @@ NewtonNonLinearSolver<VectorType>::solve(
   while ((current_res > this->params.tolerance) &&
          outer_iteration < this->params.max_iterations)
     {
+      solver->pcout << "start Newton iteration: " << outer_iteration<< std::endl;
       solver->evaluation_point = solver->present_solution;
-
       solver->assemble_matrix_and_rhs(time_stepping_method);
 
       if (outer_iteration == 0)
@@ -58,18 +58,18 @@ NewtonNonLinearSolver<VectorType>::solve(
           solver->pcout << "Newton iteration: " << outer_iteration
                         << "  - Residual:  " << current_res << std::endl;
         }
-
+      //std::cout << "this MPI start solve: "<< std::endl;
       solver->solve_linear_system(first_step);
-      solver->pcout << "first solve done "<< std::endl;
+      //std::cout << "this MPI finish solve: "<< std::endl;
       for (double alpha = 1.0; alpha > 1e-3; alpha *= 0.5)
         {
-          solver->local_evaluation_point = solver->present_solution;
+//          solver->local_evaluation_point = solver->present_solution;
           solver->local_evaluation_point.add(alpha, solver->newton_update);
+          //std::cout << "this MPI start constraint: "<< std::endl;
           solver->apply_constraints();
           solver->evaluation_point = solver->local_evaluation_point;
-          solver->pcout << " before reassemble of RHS "<< std::endl;
+          //std::cout << "this MPI start rhs: "<< std::endl;
           solver->assemble_rhs(time_stepping_method);
-          solver->pcout << " after reassemble of RHS "<< std::endl;
           current_res = solver->system_rhs.l2_norm();
 
           if (this->params.verbosity != Parameters::Verbosity::quiet)
