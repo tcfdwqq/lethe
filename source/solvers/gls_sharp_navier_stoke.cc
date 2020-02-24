@@ -85,14 +85,14 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     //std::cout << "sharp edge :start ... "<< initial_step << std::endl;
     //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
-    const double center_x=0;
-    const double center_y=0;
-    const Point<dim> center_immersed;
+    const double center_x=0.15;
+    const double center_y=0.05;
+    /*const Point<dim> center_immersed;
     if (dim==2)
         const Point<dim> center_immersed(center_x,center_y);
     else if (dim==3)
-        const Point<dim> center_immersed(center_x,center_y,center_x);
-
+        const Point<dim> center_immersed(center_x,center_y,center_x);*/
+    const Point<dim> center_immersed(center_x,center_y);
     std::vector<typename DoFHandler<dim>::active_cell_iterator> active_neighbors;
 
     Vector<int > dof_done;
@@ -1252,7 +1252,7 @@ void
 GLSNavierStokesSharpSolver<dim>::assemble_rhs(
   const Parameters::SimulationControl::TimeSteppingMethod time_stepping_method)
 {
-  TimerOutput::Scope t(this->computing_timer, "assemble_rhs");
+  //TimerOutput::Scope t(this->computing_timer, "assemble_rhs");
 
   if (time_stepping_method ==
       Parameters::SimulationControl::TimeSteppingMethod::bdf1)

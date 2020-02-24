@@ -60,14 +60,16 @@ NewtonNonLinearSolver<VectorType>::solve(
         }
 
       solver->solve_linear_system(first_step);
-
+      solver->pcout << "first solve done "<< std::endl;
       for (double alpha = 1.0; alpha > 1e-3; alpha *= 0.5)
         {
           solver->local_evaluation_point = solver->present_solution;
           solver->local_evaluation_point.add(alpha, solver->newton_update);
           solver->apply_constraints();
           solver->evaluation_point = solver->local_evaluation_point;
+          solver->pcout << " before reassemble of RHS "<< std::endl;
           solver->assemble_rhs(time_stepping_method);
+          solver->pcout << " after reassemble of RHS "<< std::endl;
           current_res = solver->system_rhs.l2_norm();
 
           if (this->params.verbosity != Parameters::Verbosity::quiet)
