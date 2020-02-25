@@ -46,7 +46,7 @@ void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
 {
     //map the vertex index to the cell that include that vertex used later in which cell a point falls in
     //vertices_to_cell is a vector of vectof of dof handler active cell iterator each element i of the vector is a vector of all the cell in contact with the vertex i
-    std::cout << "this MPI porcess start vertex mapping : "<< this->this_mpi_process<< std::endl;
+    //std::cout << "this MPI porcess start vertex mapping : "<< this->this_mpi_process<< std::endl;
     vertices_to_cell.clear();
     vertices_to_cell.resize(this->dof_handler.n_dofs()/(dim+1));
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
@@ -65,7 +65,7 @@ void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
             vertices_to_cell[v_index]=adjacent_3;
         }
     }
-    std::cout << "this MPI porcess finish vertex mapping : "<< this->this_mpi_process<< std::endl;
+    //std::cout << "this MPI porcess finish vertex mapping : "<< this->this_mpi_process<< std::endl;
 }
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::clear_pressure() {
@@ -83,18 +83,21 @@ void GLSNavierStokesSharpSolver<dim>::clear_pressure() {
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     //This function define a immersed boundary base on the sharp edge method on a hyper_shere of dim 2 or 3
-    std::cout << "this MPI porcess started sharp_edge : "<< this->this_mpi_process<< std::endl;
+    //std::cout << "this MPI porcess started sharp_edge : "<< this->this_mpi_process<< std::endl;
     //std::cout << "sharp edge :start ... "<< initial_step << std::endl;
     //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
-    const double center_x=0.15;
-    const double center_y=0.05;
-    /*const Point<dim> center_immersed;
-    if (dim==2)
-        const Point<dim> center_immersed(center_x,center_y);
-    else if (dim==3)
-        const Point<dim> center_immersed(center_x,center_y,center_x);*/
-    const Point<dim> center_immersed(center_x,center_y);
+    const double center_x=0;
+    const double center_y=0;
+    Point<dim> center_immersed;
+    if (dim==2) {
+        center_immersed(0)=center_x;
+        center_immersed(1)=center_y;}
+    else if (dim==3){
+        center_immersed(0)=center_x;
+        center_immersed(1)=center_y;
+        center_immersed(2)=center_x; }
+
     std::vector<typename DoFHandler<dim>::active_cell_iterator> active_neighbors;
 
     Vector<int > dof_done;
@@ -392,12 +395,12 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
             }
         }
     }
-    std::cout << "this MPI porcess waiting at barrier : "<< this->this_mpi_process<< std::endl;
+    //std::cout << "this MPI porcess waiting at barrier : "<< this->this_mpi_process<< std::endl;
     MPI_Barrier(this->mpi_communicator);
-    std::cout << "barrier done"<< std::endl;
-    //system_matrix.compress(VectorOperation::add);
-    //this->system_rhs.compress(VectorOperation::add);
-    std::cout << "sharp edge done"<< std::endl;
+    //std::cout << "barrier done"<< std::endl;
+    system_matrix.compress(VectorOperation::insert);
+    this->system_rhs.compress(VectorOperation::insert);
+    //std::cout << "sharp edge done on this MPI process :" << this->this_mpi_process << std::endl;
 }
 
 template <int dim>
@@ -587,7 +590,7 @@ template <bool                                              assemble_matrix,
 void
 GLSNavierStokesSharpSolver<dim>::assembleGLS()
 {
-    std::cout << "this MPI porcess start matrix assemble : "<< this->this_mpi_process<< std::endl;
+    //std::cout << "this MPI porcess start matrix assemble : "<< this->this_mpi_process<< std::endl;
     MPI_Barrier(this->mpi_communicator);
     if (assemble_matrix)
         system_matrix = 0;
@@ -1031,11 +1034,11 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
             }
         }
     }
-    std::cout << "this MPI porcess finish matrix assemble and start compress : "<< this->this_mpi_process<< std::endl;
+    //std::cout << "this MPI porcess finish matrix assemble and start compress : "<< this->this_mpi_process<< std::endl;
     if (assemble_matrix)
         system_matrix.compress(VectorOperation::add);
     this->system_rhs.compress(VectorOperation::add);
-    std::cout << "this MPI porcess finish compress : "<< this->this_mpi_process<< std::endl;
+    //std::cout << "this MPI porcess finish compress : "<< this->this_mpi_process<< std::endl;
 }
 
 /**
