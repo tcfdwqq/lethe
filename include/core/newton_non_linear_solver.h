@@ -63,7 +63,7 @@ NewtonNonLinearSolver<VectorType>::solve(
       //std::cout << "this MPI finish solve: "<< std::endl;
       for (double alpha = 1.0; alpha > 1e-3; alpha *= 0.5)
         {
-//          solver->local_evaluation_point = solver->present_solution;
+          solver->local_evaluation_point = solver->present_solution;
           solver->local_evaluation_point.add(alpha, solver->newton_update);
           //std::cout << "this MPI start constraint: "<< std::endl;
           solver->apply_constraints();
