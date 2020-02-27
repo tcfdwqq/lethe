@@ -43,6 +43,7 @@ NewtonNonLinearSolver<VectorType>::solve(
   while ((current_res > this->params.tolerance) &&
          outer_iteration < this->params.max_iterations)
     {
+
       solver->pcout << "start Newton iteration: " << outer_iteration<< std::endl;
       solver->evaluation_point = solver->present_solution;
       solver->assemble_matrix_and_rhs(time_stepping_method);
@@ -65,6 +66,7 @@ NewtonNonLinearSolver<VectorType>::solve(
         {
           solver->local_evaluation_point = solver->present_solution;
           solver->local_evaluation_point.add(alpha, solver->newton_update);
+
           //std::cout << "this MPI start constraint: "<< std::endl;
           solver->apply_constraints();
           solver->evaluation_point = solver->local_evaluation_point;

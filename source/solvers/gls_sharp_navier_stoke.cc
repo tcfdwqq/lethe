@@ -67,9 +67,111 @@ void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
     }
     //std::cout << "this MPI porcess finish vertex mapping : "<< this->this_mpi_process<< std::endl;
 }
+
+template <int dim>
+void GLSNavierStokesSharpSolver<dim>::define_particules() {
+    //define position and velocity of particules
+    if (couette==true){
+        particules.resize(2);
+        particules[0].resize(3*dim+1);
+        particules[1].resize(3*dim+1);
+        // define position of particules
+        //x y z
+        if (dim ==2) {
+            particules[0].resize(3*dim);
+            particules[1].resize(3*dim);
+            //x y
+            particules[0][0] = 0;
+            particules[0][1] = 0;
+            particules[1][0] = 0;
+            particules[1][1] = 0;
+            //Vx Vy
+            particules[0][2] = 0;
+            particules[0][3] = 0;
+            particules[1][2] = 0;
+            particules[1][3] = 0;
+            //omega
+            particules[0][4] = 1;
+            particules[1][4] = 0;
+            //radius
+            particules[0][5] = radius;
+            particules[1][5] = radius_2;
+        }
+        if (dim ==3) {
+            particules[0].resize(3*dim+1);
+            particules[1].resize(3*dim+1);
+            //x y
+            particules[0][0] = 0;
+            particules[0][1] = 0;
+            particules[0][2] = 0;
+            particules[1][0] = 0;
+            particules[1][1] = 0;
+            particules[1][2] = 0;
+            //Vx Vy
+            particules[0][3] = 0;
+            particules[0][4] = 0;
+            particules[0][5] = 0;
+            particules[1][3] = 0;
+            particules[1][4] = 0;
+            particules[1][5] = 0;
+            //omega x y z
+            particules[0][6] = 0;
+            particules[0][7] = 0;
+            particules[0][8] = 0;
+            particules[1][6] = 0;
+            particules[1][7] = 0;
+            particules[1][8] = 0;
+            //radius
+            particules[0][9] = radius;
+            particules[1][9] = radius_2;
+        }
+    }
+    else {
+        int nb=1;
+        particules.resize(1);
+        particules[0].resize(3 * dim + 1);
+        // define position of particules
+        //x y z
+        if (dim == 2) {
+            particules[0].resize(3 * dim);
+            //x y
+            particules[0][0] = 0;
+            particules[0][1] = 0;
+            //Vx Vy
+            particules[0][2] = 0;
+            particules[0][3] = 0;
+            //omega
+            particules[0][4] = 0;
+            //radius
+            particules[0][5] = radius;
+        }
+        if (dim == 3) {
+            particules[0].resize(3 * dim + 1);
+            //x y
+            particules[0][0] = 0;
+            particules[0][1] = 0;
+            particules[0][2] = 0;
+
+            //Vx Vy
+            particules[0][3] = 0;
+            particules[0][4] = 0;
+            particules[0][5] = 0;
+
+            //omega x y z
+            particules[0][6] = 0;
+            particules[0][7] = 0;
+            particules[0][8] = 0;
+
+            //radius
+            particules[0][9] = radius;
+
+        }
+    }
+}
+
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::clear_pressure() {
-    for(unsigned int i=0;i < this->dof_handler.n_dofs(); ++i){
+    for(unsigned int i=dim;i < this->dof_handler.n_dofs(); i+=dim+1){
     //for(unsigned int i=this->dof_handler.n_dofs()*dim/(dim+1);i < this->dof_handler.n_dofs(); ++i){
             if (this->locally_owned_dofs.is_element(i)){
                 this->present_solution(i)=0;
@@ -87,16 +189,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     //std::cout << "sharp edge :start ... "<< initial_step << std::endl;
     //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
-    const double center_x=0;
-    const double center_y=0;
     Point<dim> center_immersed;
-    if (dim==2) {
-        center_immersed(0)=center_x;
-        center_immersed(1)=center_y;}
-    else if (dim==3){
-        center_immersed(0)=center_x;
-        center_immersed(1)=center_y;
-        center_immersed(2)=center_x; }
 
     std::vector<typename DoFHandler<dim>::active_cell_iterator> active_neighbors;
 
@@ -133,285 +226,235 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
     //loop on all the cell to define if the sharp edge cut them
     //for (; cell != endc; ++cell)
-    bool set_pressure=false;
+    std::vector<bool> set_pressure;
+    set_pressure.resize(particules.size());
     for (const auto &cell : cell_iterator) {
         if (cell->is_locally_owned()) {
             fe_values.reinit(cell);
             cell->get_dof_indices(local_dof_indices);
-            unsigned int count_small = 0;
-            unsigned int count_large = 0;
 
-            for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
-                //count the number of dof that ar smaller or larger then the radius of the particules
-                //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
-                if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= radius) {
-                    ++count_small;
+            for (unsigned int p = 0; p < particules.size(); ++p) {
+                unsigned int count_small = 0;
+                /*std::cout << "particule size "<< particules[p][5] << std::endl;
+                std::cout << "particule size "<< particules[p][particules[p].size()-1] << std::endl;*/
+                if (dim == 2) {
+                    center_immersed(0) = particules[p][0];
+                    center_immersed(1) = particules[p][1];
+                } else if (dim == 3) {
+                    center_immersed(0) = particules[p][0];
+                    center_immersed(1) = particules[p][1];
+                    center_immersed(2) = particules[p][2];
                 }
-                if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= radius_2) {
-                    ++count_large;
-                }
-            }
 
-            if (couette == false) {
-                count_large = 0;
-            }
-
-            if (count_small == local_dof_indices.size() & set_pressure==false) {
-                //impose pressure inside the the particule
-                set_pressure=true;
-                unsigned int global_index_overrigth = local_dof_indices[dim];
-                //clear the line
-                double sum_line =0;
-                for (unsigned int m = 0; m < active_neighbors.size(); m++) {
-                    const auto &cell_3 = active_neighbors[m];
-                    cell_3->get_dof_indices(local_dof_indices_3);
-                    for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
-                        sum_line+=abs(this->system_matrix(global_index_overrigth, local_dof_indices_3[o]));
-                        this->system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
-
+                for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
+                    //count the number of dof that ar smaller or larger then the radius of the particules
+                    //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
+                    if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= particules[p][particules[p].size()-1]) {
+                        ++count_small;
                     }
                 }
-                //std::cout << "pressure set to 1 : sum_line :"<< sum_line<< std::endl;
-                this->system_matrix.set(global_index_overrigth,global_index_overrigth,
-                                        sum_line);
-                this->system_rhs(global_index_overrigth) = 0;
-            }
-
-            //std::cout << "dof_overright start  "<< (count_small != 0 and count_small != local_dof_indices.size())  << std::endl;
-            //if the cell is cut by the IB the count wont equal 0 or the number of total dof in a cell
-            if (count_small != 0 and count_small != local_dof_indices.size()) {
-                //if we are here the cell is cut by the immersed boundary
-                //std::cout << "dof_overright start  "<< std::endl;
-                //loops on the dof that reprensant the velocity   in x and y and pressure separatly
-                for (unsigned int k = 0; k < dim + 1; ++k) {
-
-                    if (k < dim) {
-                        //we are working on the velocity of th
-                        unsigned int l = k;
-
-                        //loops on the dof that are for vx or vy separatly
-                        //while (l < local_dof_indices.size()) {
-                        for (unsigned int l=k;l < local_dof_indices.size();l+=dim+1) {
-                            if (dof_done(local_dof_indices[l]) ==0 & this->locally_owned_dofs.is_element(local_dof_indices[l])) {
-                                dof_done(local_dof_indices[l]) += 1;
-                                //std::cout << "local dof_done "<< dof_done(local_dof_indices[l])<< std::endl;
-                                //define the distance vector between the immersed boundary and the dof support point for each dof
-                                Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] -
-                                                                    center_immersed - radius *
-                                                                                      (support_points[local_dof_indices[l]] -
-                                                                                       center_immersed) /
-                                                                                      (support_points[local_dof_indices[l]] -
-                                                                                       center_immersed).norm());
-
-                                //define the other point for or 3 point stencil ( IB point, original dof and this point)
-                                const Point<dim, double> second_point(support_points[local_dof_indices[l]] + vect_dist);
-
-                                //define the vertex associated with the dof
-                                unsigned int v = floor(l / (dim + 1));
-                                unsigned int v_index = cell->vertex_index(v);
-
-                                //get a cell iterator for all the cell neighbors of that vertex
-                                active_neighbors = this->vertices_to_cell[v_index];
-
-                                unsigned int cell_found = 0;
-                                unsigned int n_active_cells = active_neighbors.size();
-
-                                //loops on those cell to find in which of them the new point for or sharp edge stencil is
-                                for (unsigned int cell_index = 0; cell_index < n_active_cells; ++cell_index) {
-                                    try {
-                                        //define the cell and check if the point is inside of the cell
-                                        const auto &cell_3 = active_neighbors[cell_index];
-                                        // if (cell_3->is_locally_owned()) {
-                                        const Point<dim, double> p_cell = immersed_map.transform_real_to_unit_cell(
-                                                active_neighbors[cell_index], second_point);
-                                        const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
-
-                                        //define the cell and check if the point is inside of the cell
-                                        if (dist_2 == 0) {
-                                            //if the point is in this cell then the dist is equal to 0 and we have found our cell
-                                            cell_found = cell_index;
-                                            break;
-                                        }
-                                    }
-                                        // may cause error if the point is not in cell
-                                    catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
-                                    }
-                                }
-
-                                //we have or next cell need to complet the stencil and we define stuff around it
-                                const auto &cell_2 = active_neighbors[cell_found];
-
-                                //define the unit cell point for the 3rd point of our stencil for a interpolation
-                                Point <dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2,
-                                                                                                      second_point);
-                                Point<dim, double> second_point_v_2 = immersed_map.transform_real_to_unit_cell(cell_2,
-                                                                                                               second_point);
-                                cell_2->get_dof_indices(local_dof_indices_2);
-
-                                //std::cout << "second_point : "<< second_point_v<< std::endl;
-                                //std::cout << "second_point double : "<< second_point_v_2<< std::endl;
-                                //std::cout << "second_point : "<< second_point_v<< std::endl;
-
-                                // define which dof is going to be redefine
-                                unsigned int global_index_overrigth = local_dof_indices[l];
-                                //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value
-                                double sum_line = this->system_matrix(global_index_overrigth, global_index_overrigth);
 
 
-                                //clear the current line of this dof  by looping on the neighbors cell of this dof and clear all the associated dof
-                                for (unsigned int m = 0; m < active_neighbors.size(); m++) {
-                                    const auto &cell_3 = active_neighbors[m];
-                                    cell_3->get_dof_indices(local_dof_indices_3);
-                                    for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
-                                        this->system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
-                                    }
-                                }
-
-                                //define the new matrix entry for this dof
-                                if (vect_dist.norm() != 0) {
-                                    // first the dof itself
-                                    this->system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                                            -2 / (1 / sum_line));
-
-                                    unsigned int n = k;
-                                    // then the third point trough interpolation from the dof of the cell in which the third point is
-                                    //while (n < local_dof_indices_2.size()) {
-                                    for (unsigned int n=k;n < local_dof_indices.size();n+=dim+1) {
-                                        if (global_index_overrigth == local_dof_indices_2[n]) {
-                                            this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
-                                                                    this->fe.shape_value(n, second_point_v) /
-                                                                    (1 / sum_line) - 2 / (1 / sum_line));
-                                        } else {
-                                            this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
-                                                                    this->fe.shape_value(n, second_point_v) /
-                                                                    (1 / sum_line));
-                                        }
-
-                                        /*if (n < (dim + 1) * 4) {
-                                            n = n + dim + 1;
-                                        } else {
-                                            n = n + dim;
-                                        }*/
-                                    }
-                                } else {
-                                    this->system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                                            sum_line);
-
-                                }
-                                // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary conmdition as a dirichlet
-                                if (couette == true & initial_step) {
-                                    // different boundary condition depending if the odf is vx or vy and if the problem we solve
-                                    if (k == 0) {
-                                        this->system_rhs(global_index_overrigth) =
-                                                1 * ((support_points[local_dof_indices[l]] -
-                                                      center_immersed) /
-                                                     (support_points[local_dof_indices[l]] -
-                                                      center_immersed).norm())[1] / (1 / sum_line);
-                                    } else {
-                                        this->system_rhs(global_index_overrigth) =
-                                                -1 * ((support_points[local_dof_indices[l]] -
-                                                       center_immersed) /
-                                                      (support_points[local_dof_indices[l]] -
-                                                       center_immersed).norm())[0] / (1 / sum_line);
-                                    }
-                                } else {
-                                    this->system_rhs(global_index_overrigth) = 0;
-                                }
-                                if (couette == false)
-                                    this->system_rhs(global_index_overrigth) = 0;
-
-
-                            }
-                                // add index ( this is for P2 element when dof are not at the nodes but should be replace because rest of the code those not workj with that for the moment
-                                /*if (l < (dim + 1) * 4) {
-                                    l = l + dim + 1;
-                                } else {
-                                    l = l + dim;
-                                }*/
-
+                if (count_small == local_dof_indices.size() & set_pressure[p] == false) {
+                    //impose pressure inside the the particule
+                    set_pressure[p] = true;
+                    unsigned int global_index_overrigth = local_dof_indices[dim];
+                    //clear the line
+                    double sum_line = 0;
+                    for (unsigned int m = 0; m < active_neighbors.size(); m++) {
+                        const auto &cell_3 = active_neighbors[m];
+                        cell_3->get_dof_indices(local_dof_indices_3);
+                        for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
+                            sum_line += abs(this->system_matrix(global_index_overrigth, local_dof_indices_3[o]));
                         }
                     }
+                    if (sum_line > 0) {
+                        for (unsigned int m = 0; m < active_neighbors.size(); m++) {
+                            const auto &cell_3 = active_neighbors[m];
+                            cell_3->get_dof_indices(local_dof_indices_3);
+                            for (unsigned int o = 0; o < this->dof_handler.n_dofs(); ++o) {
+                                this->system_matrix.set(global_index_overrigth, o, 0);
+                            }
+                        }
+                        //std::cout << "pressure dof :"<< global_index_overrigth<< " sum_line : " << sum_line << std::endl;
+
+                        this->system_matrix.set(global_index_overrigth, global_index_overrigth,
+                                                1);
+                        this->system_rhs(global_index_overrigth) = 0;
+                    }
                 }
-            }
-            // same as previous but for large circle in the case of couette flow
-            if (count_large != 0 and count_large != local_dof_indices.size()) {
-                //cellule coupe par boundary large
-                for (unsigned int k = 0; k < dim + 1; ++k) {
-                    if (k < 2) {
-                        unsigned int l = k;
-                        while (l < local_dof_indices.size()) {
-                            Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] - radius_2 *
-                                                                                                       (support_points[local_dof_indices[l]] -
-                                                                                                        center_immersed) /
-                                                                                                       (support_points[local_dof_indices[l]] -
-                                                                                                        center_immersed).norm());
-                            double dist = vect_dist.norm();
-                            const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
-                            unsigned int v = floor(l / (dim + 1));
 
-                            unsigned int v_index = cell->vertex_index(v);
-                            //active_neighbors=GridTools::find_cells_adjacent_to_vertex(dof_handler,v_index);
-                            active_neighbors = vertices_to_cell[v_index];
-                            unsigned int cell_found = 0;
-                            unsigned int n_active_cells = active_neighbors.size();
+                //std::cout << "dof_overright start  "<< count_small   << std::endl;
+                //if the cell is cut by the IB the count wont equal 0 or the number of total dof in a cell
 
-                            for (unsigned int cell_index = 0; cell_index < n_active_cells; ++cell_index) {
-                                try {
-                                    const auto &cell_3 = active_neighbors[cell_index];
-                                    const Point<dim> p_cell = immersed_map.transform_real_to_unit_cell(
-                                            active_neighbors[cell_index], second_point);
-                                    const double dist = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
-                                    if (dist == 0) {
-                                        cell_found = cell_index;
-                                        break;
+                if (count_small != 0 and count_small != local_dof_indices.size()) {
+                    //if we are here the cell is cut by the immersed boundary
+                    //std::cout << "dof_overright start  "<< std::endl;
+                    //loops on the dof that reprensant the velocity   in x and y and pressure separatly
+                    for (unsigned int k = 0; k < dim + 1; ++k) {
+
+                        if (k < dim) {
+                            //we are working on the velocity of th
+                            unsigned int l = k;
+
+                            //loops on the dof that are for vx or vy separatly
+                            //while (l < local_dof_indices.size()) {
+                            for (unsigned int l = k; l < local_dof_indices.size(); l += dim + 1) {
+                                if (dof_done(local_dof_indices[l]) == 0 &
+                                    this->locally_owned_dofs.is_element(local_dof_indices[l])) {
+                                    dof_done(local_dof_indices[l]) += 1;
+                                    //std::cout << "local dof_done "<< dof_done(local_dof_indices[l])<< std::endl;
+                                    //define the distance vector between the immersed boundary and the dof support point for each dof
+                                    Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] -
+                                                                        center_immersed - particules[p][particules[p].size()-1]  *
+                                                                                          (support_points[local_dof_indices[l]] -
+                                                                                           center_immersed) /
+                                                                                          (support_points[local_dof_indices[l]] -
+                                                                                           center_immersed).norm());
+                                    /*std::cout << "vect dist "<< vect_dist  << std::endl;
+                                    std::cout << "radius "<< particules[p][particules[p].size()-1]  << std::endl;
+                                    std::cout << "center "<< center_immersed << std::endl;
+                                    std::cout << "local support "<< support_points[local_dof_indices[l]]  << std::endl;*/
+
+                                    //define the other point for or 3 point stencil ( IB point, original dof and this point)
+                                    const Point<dim, double> second_point(
+                                            support_points[local_dof_indices[l]] + vect_dist);
+
+                                    //define the vertex associated with the dof
+                                    unsigned int v = floor(l / (dim + 1));
+                                    unsigned int v_index = cell->vertex_index(v);
+
+                                    //get a cell iterator for all the cell neighbors of that vertex
+                                    active_neighbors = this->vertices_to_cell[v_index];
+
+                                    unsigned int cell_found = 0;
+                                    unsigned int n_active_cells = active_neighbors.size();
+
+                                    //loops on those cell to find in which of them the new point for or sharp edge stencil is
+                                    for (unsigned int cell_index = 0; cell_index < n_active_cells; ++cell_index) {
+                                        try {
+                                            //define the cell and check if the point is inside of the cell
+                                            const auto &cell_3 = active_neighbors[cell_index];
+                                            // if (cell_3->is_locally_owned()) {
+                                            const Point<dim, double> p_cell = immersed_map.transform_real_to_unit_cell(
+                                                    active_neighbors[cell_index], second_point);
+                                            const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+
+                                            //define the cell and check if the point is inside of the cell
+                                            if (dist_2 == 0) {
+                                                //if the point is in this cell then the dist is equal to 0 and we have found our cell
+                                                cell_found = cell_index;
+                                                break;
+                                            }
+                                        }
+                                            // may cause error if the point is not in cell
+                                        catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
+                                        }
+                                    }
+
+                                    //we have or next cell need to complet the stencil and we define stuff around it
+                                    const auto &cell_2 = active_neighbors[cell_found];
+
+                                    //define the unit cell point for the 3rd point of our stencil for a interpolation
+                                    Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2,
+                                                                                                         second_point);
+                                    Point<dim, double> second_point_v_2 = immersed_map.transform_real_to_unit_cell(
+                                            cell_2,
+                                            second_point);
+                                    cell_2->get_dof_indices(local_dof_indices_2);
+
+                                    //std::cout << "second_point : "<< second_point_v<< std::endl;
+                                    //std::cout << "second_point double : "<< second_point_v_2<< std::endl;
+                                    //std::cout << "second_point : "<< second_point_v<< std::endl;
+
+                                    // define which dof is going to be redefine
+                                    unsigned int global_index_overrigth = local_dof_indices[l];
+                                    //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value
+                                    double sum_line = this->system_matrix(global_index_overrigth,
+                                                                          global_index_overrigth);
+
+
+                                    //clear the current line of this dof  by looping on the neighbors cell of this dof and clear all the associated dof
+                                    for (unsigned int m = 0; m < active_neighbors.size(); m++) {
+                                        const auto &cell_3 = active_neighbors[m];
+                                        cell_3->get_dof_indices(local_dof_indices_3);
+                                        for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
+                                            this->system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
+                                        }
+                                    }
+
+                                    //define the new matrix entry for this dof
+                                    if (vect_dist.norm() != 0) {
+                                        // first the dof itself
+                                        this->system_matrix.set(global_index_overrigth, global_index_overrigth,
+                                                                -2 / (1 / sum_line));
+
+                                        unsigned int n = k;
+                                        // then the third point trough interpolation from the dof of the cell in which the third point is
+                                        //while (n < local_dof_indices_2.size()) {
+                                        for (unsigned int n = k; n < local_dof_indices.size(); n += dim + 1) {
+                                            if (global_index_overrigth == local_dof_indices_2[n]) {
+                                                this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
+                                                                        this->fe.shape_value(n, second_point_v) /
+                                                                        (1 / sum_line) - 2 / (1 / sum_line));
+                                            } else {
+                                                this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
+                                                                        this->fe.shape_value(n, second_point_v) /
+                                                                        (1 / sum_line));
+                                            }
+
+                                            /*if (n < (dim + 1) * 4) {
+                                                n = n + dim + 1;
+                                            } else {
+                                                n = n + dim;
+                                            }*/
+                                        }
+                                    } else {
+                                        this->system_matrix.set(global_index_overrigth, global_index_overrigth,
+                                                                sum_line);
+
+                                    }
+                                    // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary conmdition as a dirichlet
+                                    if (initial_step) {
+                                        // different boundary condition depending if the odf is vx or vy and if the problem we solve
+                                        if (k == 0) {
+                                            if (dim==2) {
+                                                double vx=-particules[p][4]*particules[p][5]*((support_points[local_dof_indices[l]] -
+                                                                                               center_immersed) /
+                                                                                              (support_points[local_dof_indices[l]] -
+                                                                                               center_immersed).norm())[1]+particules[p][2];
+
+                                                this->system_rhs(global_index_overrigth) =-vx*sum_line;
+
+                                            }
+                                            if (dim==3) {
+                                                double vx=particules[p][2];
+
+                                                this->system_rhs(global_index_overrigth) =-vx*sum_line;
+                                            }
+                                        }
+                                        else if(k==1){
+                                            if (dim==2) {
+                                                double vy=particules[p][4]*particules[p][5]*((support_points[local_dof_indices[l]] -
+                                                                                               center_immersed) /
+                                                                                              (support_points[local_dof_indices[l]] -
+                                                                                               center_immersed).norm())[0]+particules[p][3];
+                                                this->system_rhs(global_index_overrigth) =-vy*sum_line;
+                                            }
+                                            if (dim==3) {
+                                                double vy=particules[p][3];
+                                                this->system_rhs(global_index_overrigth) =-vy*sum_line;
+                                            }
+                                        }
+                                        else if(k==2 & dim==3){
+                                            double vz=particules[p][5];
+                                            this->system_rhs(global_index_overrigth) =-vz*sum_line;
+                                        }
+                                    }
+                                    else {
+                                        this->system_rhs(global_index_overrigth) = 0;
                                     }
                                 }
-                                catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
-                                }
-                            }
-
-
-                            const auto &cell_2 = active_neighbors[cell_found];
-                            Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, second_point);
-                            cell_2->get_dof_indices(local_dof_indices_2);
-
-                            unsigned int global_index_overrigth = local_dof_indices[l];
-                            double sum_line = system_matrix(global_index_overrigth, global_index_overrigth);
-
-                            for (unsigned int m = 0; m < active_neighbors.size(); m++) {
-                                const auto &cell_3 = active_neighbors[m];
-                                cell_3->get_dof_indices(local_dof_indices_3);
-                                for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
-                                    //sum_line += system_matrix(global_index_overrigth, local_dof_indices_3[o]);
-                                    system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
-                                }
-                            }
-
-                            system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                              -2 / (1 / sum_line));
-                            unsigned int n = k;
-                            while (n < local_dof_indices_2.size()) {
-                                system_matrix.add(global_index_overrigth, local_dof_indices_2[n],
-                                                  this->fe.shape_value(n, second_point_v) / (1 / sum_line));
-                                if (n < (dim + 1) * 4) {
-                                    n = n + dim + 1;
-                                } else {
-                                    n = n + dim;
-                                }
-                            }
-                            this->system_rhs(global_index_overrigth) = 0;
-                            /*if (couette==false) {
-                                if (k == 0) {
-                                    system_rhs(global_index_overrigth) = 0;
-                                } else {
-                                    system_rhs(global_index_overrigth) = 0;
-                                }
-                            }*/
-
-                            if (l < (dim + 1) * 4) {
-                                l = l + dim + 1;
-                            } else {
-                                l = l + dim;
                             }
                         }
                     }
@@ -425,6 +468,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     system_matrix.compress(VectorOperation::insert);
     this->system_rhs.compress(VectorOperation::insert);
     //std::cout << "sharp edge done on this MPI process :" << this->this_mpi_process << std::endl;
+    initial_step_bool=false;
 }
 
 template <int dim>
@@ -667,16 +711,9 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
     MappingQ1<dim> immersed_map;
     std::map< types::global_dof_index, Point< dim >>  	support_points;
     DoFTools::map_dofs_to_support_points(immersed_map,this->dof_handler,support_points);
-    const double center_x=0;
-    const double center_y=0;
+
     Point<dim> center_immersed;
-    if (dim==2) {
-        center_immersed(0)=center_x;
-        center_immersed(1)=center_y;}
-    else if (dim==3){
-        center_immersed(0)=center_x;
-        center_immersed(1)=center_y;
-        center_immersed(2)=center_x; }
+
 
     // Time steps and inverse time steps which is used for numerous calculations
     const double dt  = this->simulationControl.getTimeSteps()[0];
@@ -720,18 +757,35 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
             endc = this->dof_handler.end();
     for (; cell != endc; ++cell)
     {
+        bool assemble_bool=true;
         if (cell->is_locally_owned()) {
-            unsigned int count_small = 0;
+
             cell->get_dof_indices(local_dof_indices);
+            for (unsigned int k = 0; k < particules.size(); ++k){
+                unsigned int count_small = 0;
+                if (dim==2) {unsigned int count_small = 0;
+                    center_immersed(0)=particules[k][0];
+                    center_immersed(1)=particules[k][1];}
+                else if (dim==3){
+                    center_immersed(0)=particules[k][0];
+                    center_immersed(1)=particules[k][1];
+                    center_immersed(2)=particules[k][2]; }
+
             for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
-                //count the number of dof that ar smaller or larger then the radius of the particules
+                //count the number of dof that are smaller or larger then the radius of the particules
                 //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
-                if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= radius) {
+                if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= particules[k][particules[k].size()-1]) {
                     ++count_small;
                 }
             }
+                if (count_small != 0 and count_small!= local_dof_indices.size()){
+                    assemble_bool=false;
+                    break;
+                }
+            }
             // assemble the cell only if the cell is not cut by a IB
-            if (count_small == 0 or count_small == local_dof_indices.size()) {
+
+            if (assemble_bool==true ) {
 
 
 
@@ -1293,7 +1347,7 @@ GLSNavierStokesSharpSolver<dim>::assemble_matrix_and_rhs(
     assembleGLS<true,
                 Parameters::SimulationControl::TimeSteppingMethod::steady>();
     vertices_cell_mapping();
-    sharp_edge(true);
+    sharp_edge(initial_step_bool);
 
 
 }
@@ -1341,7 +1395,7 @@ GLSNavierStokesSharpSolver<dim>::assemble_rhs(
     assembleGLS<false,
                 Parameters::SimulationControl::TimeSteppingMethod::steady>();
     vertices_cell_mapping();
-    sharp_edge(true);
+    sharp_edge(initial_step_bool);
     
 
 }
@@ -1614,6 +1668,8 @@ GLSNavierStokesSharpSolver<dim>::solve()
 {
   this->read_mesh();
   this->create_manifolds();
+  this->define_particules();
+
 
   this->setup_dofs();
   this->set_initial_condition(this->nsparam.initialCondition->type,
@@ -1621,12 +1677,15 @@ GLSNavierStokesSharpSolver<dim>::solve()
 
   while (this->simulationControl.integrate())
     {
-
+      //clear_pressure();
+      this->set_initial_condition(this->nsparam.initialCondition->type,
+                                    this->nsparam.restartParameters.restart);
       printTime(this->pcout, this->simulationControl);
       if (!this->simulationControl.firstIter())
         {
           NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
             refine_mesh();
+            initial_step_bool=true;
 
         }
 

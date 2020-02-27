@@ -67,6 +67,9 @@ private:
   vertices_cell_mapping();
 
   void
+  define_particules();
+
+  void
   sharp_edge(const bool initial_step);
 
   void
@@ -149,7 +152,12 @@ private:
   const double GLS_u_scale = 1;
   double radius=0.21;
   double radius_2=0.6;
-  bool couette= false;
+  bool couette= true;
+  std::vector<std::vector<double>> particules;
+  bool initial_step_bool;
+
+
+
 
 };
 
