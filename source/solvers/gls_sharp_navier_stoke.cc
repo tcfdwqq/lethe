@@ -94,8 +94,8 @@ void GLSNavierStokesSharpSolver<dim>::define_particules() {
             particules[0][4] = 1;
             particules[1][4] = 0;
             //radius
-            particules[0][5] = radius;
-            particules[1][5] = radius_2;
+            particules[0][5] = 0.6;
+            particules[1][5] = 0.9;
         }
         if (dim ==3) {
             particules[0].resize(3*dim+1);
@@ -316,9 +316,12 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     std::cout << "center "<< center_immersed << std::endl;
                                     std::cout << "local support "<< support_points[local_dof_indices[l]]  << std::endl;*/
 
+
                                     //define the other point for or 3 point stencil ( IB point, original dof and this point)
                                     const Point<dim, double> second_point(
                                             support_points[local_dof_indices[l]] + vect_dist);
+                                    const Point<dim, double> third_point(
+                                            support_points[local_dof_indices[l]] + vect_dist/2);
 
                                     //define the vertex associated with the dof
                                     unsigned int v = floor(l / (dim + 1));
@@ -338,10 +341,13 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                             // if (cell_3->is_locally_owned()) {
                                             const Point<dim, double> p_cell = immersed_map.transform_real_to_unit_cell(
                                                     active_neighbors[cell_index], second_point);
+                                            const Point<dim, double> p_cell_2 = immersed_map.transform_real_to_unit_cell(
+                                                    active_neighbors[cell_index], third_point);
                                             const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
+                                            const double dist_3 = GeometryInfo<dim>::distance_to_unit_cell(p_cell_2);
 
                                             //define the cell and check if the point is inside of the cell
-                                            if (dist_2 == 0) {
+                                            if (dist_2 == 0 & dist_3 == 0 ) {
                                                 //if the point is in this cell then the dist is equal to 0 and we have found our cell
                                                 cell_found = cell_index;
                                                 break;
@@ -358,9 +364,10 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     //define the unit cell point for the 3rd point of our stencil for a interpolation
                                     Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2,
                                                                                                          second_point);
-                                    Point<dim, double> second_point_v_2 = immersed_map.transform_real_to_unit_cell(
+
+                                    Point<dim> third_point_v = immersed_map.transform_real_to_unit_cell(
                                             cell_2,
-                                            second_point);
+                                            third_point);
                                     cell_2->get_dof_indices(local_dof_indices_2);
 
                                     //std::cout << "second_point : "<< second_point_v<< std::endl;
@@ -386,8 +393,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     //define the new matrix entry for this dof
                                     if (vect_dist.norm() != 0) {
                                         // first the dof itself
-                                        this->system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                                                -2 / (1 / sum_line));
+                                        //this->system_matrix.set(global_index_overrigth, global_index_overrigth,
+                                                                //-6 / (1 / sum_line));
 
                                         unsigned int n = k;
                                         // then the third point trough interpolation from the dof of the cell in which the third point is
@@ -395,12 +402,14 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                         for (unsigned int n = k; n < local_dof_indices.size(); n += dim + 1) {
                                             if (global_index_overrigth == local_dof_indices_2[n]) {
                                                 this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
-                                                                        this->fe.shape_value(n, second_point_v) /
-                                                                        (1 / sum_line) - 2 / (1 / sum_line));
+                                                                        -1*this->fe.shape_value(n, second_point_v)*sum_line+ 2*sum_line + 0*this->fe.shape_value(n, third_point_v)*sum_line );
+                                                //this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
+                                                                        //3*this->fe.shape_value(n, second_point_v)*sum_line+ 6*sum_line + -8*this->fe.shape_value(n, third_point_v)*sum_line );
                                             } else {
                                                 this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
-                                                                        this->fe.shape_value(n, second_point_v) /
-                                                                        (1 / sum_line));
+                                                                        -1*this->fe.shape_value(n, second_point_v)*sum_line+  0*this->fe.shape_value(n, third_point_v)*sum_line );
+                                                //this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
+                                                                        //3*this->fe.shape_value(n, second_point_v)*sum_line + -8*this->fe.shape_value(n, third_point_v)*sum_line );
                                             }
 
                                             /*if (n < (dim + 1) * 4) {
@@ -424,13 +433,13 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                                                               (support_points[local_dof_indices[l]] -
                                                                                                center_immersed).norm())[1]+particules[p][2];
 
-                                                this->system_rhs(global_index_overrigth) =-vx*sum_line;
+                                                this->system_rhs(global_index_overrigth) =vx*sum_line;
 
                                             }
                                             if (dim==3) {
                                                 double vx=particules[p][2];
 
-                                                this->system_rhs(global_index_overrigth) =-vx*sum_line;
+                                                this->system_rhs(global_index_overrigth) =vx*sum_line;
                                             }
                                         }
                                         else if(k==1){
@@ -439,16 +448,16 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                                                                center_immersed) /
                                                                                               (support_points[local_dof_indices[l]] -
                                                                                                center_immersed).norm())[0]+particules[p][3];
-                                                this->system_rhs(global_index_overrigth) =-vy*sum_line;
+                                                this->system_rhs(global_index_overrigth) =vy*sum_line;
                                             }
                                             if (dim==3) {
                                                 double vy=particules[p][3];
-                                                this->system_rhs(global_index_overrigth) =-vy*sum_line;
+                                                this->system_rhs(global_index_overrigth) =vy*sum_line;
                                             }
                                         }
                                         else if(k==2 & dim==3){
                                             double vz=particules[p][5];
-                                            this->system_rhs(global_index_overrigth) =-vz*sum_line;
+                                            this->system_rhs(global_index_overrigth) =vz*sum_line;
                                         }
                                     }
                                     else {
