@@ -152,7 +152,7 @@ private:
   const double GLS_u_scale = 1;
   double radius=0.21;
   double radius_2=0.6;
-  bool couette= true;
+  bool couette= false;
   std::vector<std::vector<double>> particules;
   bool initial_step_bool;
 

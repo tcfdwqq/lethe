@@ -1687,8 +1687,7 @@ GLSNavierStokesSharpSolver<dim>::solve()
   while (this->simulationControl.integrate())
     {
       //clear_pressure();
-      this->set_initial_condition(this->nsparam.initialCondition->type,
-                                    this->nsparam.restartParameters.restart);
+      
       printTime(this->pcout, this->simulationControl);
       if (!this->simulationControl.firstIter())
         {

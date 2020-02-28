@@ -266,7 +266,7 @@ void DirectSteadyNavierStokes<dim>::make_cube_grid (int refinementLevel)
         else{
 
             const Point<dim> P1(-1,-1);
-            const Point<dim> P2(1,1)  ;
+            const Point<dim> P2(2,1)  ;
             GridGenerator::hyper_rectangle (triangulation, P1, P2,true);
         }
     }
@@ -347,10 +347,10 @@ void DirectSteadyNavierStokes<dim>::setup_dofs ()
                                                    fe.component_mask(velocities));
           VectorTools::interpolate_boundary_values(dof_handler, 3, Symetrics_Wall<dim>(), nonzero_constraints,
                                                    fe.component_mask(velocities));
-          /*std::set<types::boundary_id> no_normal_flux_boundaries;
+          std::set<types::boundary_id> no_normal_flux_boundaries;
           no_normal_flux_boundaries.insert(2);
           no_normal_flux_boundaries.insert(3);
-          VectorTools::compute_no_normal_flux_constraints(dof_handler,0,no_normal_flux_boundaries,nonzero_constraints);*/
+          VectorTools::compute_no_normal_flux_constraints(dof_handler,0,no_normal_flux_boundaries,nonzero_constraints);
 
 
 
@@ -923,7 +923,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
 
     //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
-    const double center_x=0.2;
+    const double center_x=0;
     const double center_y=0;
     const Point<dim> center_immersed(center_x,center_y);
     if (dim==2)
@@ -998,7 +998,7 @@ void DirectSteadyNavierStokes<dim>::sharp_edge_V2(const bool initial_step) {
                                                                                                   center_immersed) /
                                                                                                  (support_points[local_dof_indices[l]] -
                                                                                                   center_immersed).norm());
-                        std::cout << "vect_dist: " << vect_dist  << std::endl;
+                        //std::cout << "vect_dist: " << vect_dist  << std::endl;
                         //define the other point for or 3 point stencil ( IB point, original dof and this point)
                         const Point<dim> second_point(support_points[local_dof_indices[l]] + vect_dist);
                         //define the vertex associated with the dof
@@ -1626,7 +1626,7 @@ void DirectSteadyNavierStokes<dim>::runMMS()
 
     exact_solution = new ExactSolutionTaylorCouette<dim>;
     forcing_function = new NoForce<dim>;
-    viscosity_=1;
+    viscosity_=0.05;
     radius=0.21;
     radius_2=0.91;
     speed=1;
