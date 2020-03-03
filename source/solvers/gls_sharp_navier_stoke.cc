@@ -242,7 +242,6 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                                             particules[p][5] * sin(i * 2 * PI / (nb_evaluation)) + center_y);
                 const auto &cell = GridTools::find_active_cell_around_point(this->dof_handler, eval_point);
                 if (cell->is_locally_owned()) {
-                    Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point);
 
                     cell->get_dof_indices(local_dof_indices);
                     double u_1 = 0;
@@ -256,7 +255,7 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                     const Point<dim> eval_point_2(eval_point[0] + dr * cos(i * 2 * PI / (nb_evaluation)),
                                                   eval_point[1] + dr * sin(i * 2 * PI / (nb_evaluation)));
                     const auto &cell_2 = GridTools::find_active_cell_around_point(this->dof_handler, eval_point_2);
-                    second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, eval_point_2);
+                    Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, eval_point_2);
                     cell_2->get_dof_indices(local_dof_indices);
                     double u_2 = 0;
                     double v_2 = 0;
@@ -271,16 +270,19 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                     double du_dr = (U2 / (particules[p][5] + dr) - U1 / particules[p][5]) / dr;
                     //std::cout << "du_dr " <<du_dr << std::endl;
                     //std::cout << "local shear stress: " <<du_dr*mu*radius << std::endl;
-                    t_torque += particules[p][5] * du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] /
-                                (nb_evaluation - 1);
+
                     fx_v += du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] / (nb_evaluation - 1) *
                             cos(i * 2 * PI / (nb_evaluation) - PI / 2);
                     fy_v += du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] / (nb_evaluation - 1) *
                             sin(i * 2 * PI / (nb_evaluation) - PI / 2);
+                    t_torque += du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] / (nb_evaluation - 1) *
+                                cos(i * 2 * PI / (nb_evaluation) - PI / 2)* sin(i * 2 * PI / (nb_evaluation) )* particules[p][5]+du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] / (nb_evaluation - 1) *
+                                                                                                   sin(i * 2 * PI / (nb_evaluation) - PI / 2)*cos(i * 2 * PI / (nb_evaluation))* particules[p][5];
                 }
             }
 
-            std::cout <<"particule : "<< p << " total_torque :" << t_torque << std::endl;
+            double t_torque_ =Utilities::MPI::sum(t_torque, this->mpi_communicator);
+            std::cout <<"particule : "<< p << " total_torque :" << t_torque_ << std::endl;
 
 
             fx_p_0 = 0;
