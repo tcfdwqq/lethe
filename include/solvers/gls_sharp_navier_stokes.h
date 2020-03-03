@@ -69,8 +69,8 @@ private:
   void
   define_particules();
 
- /* void
-  force_on ib();*/
+  void
+  force_on_ib();
 
   void
   sharp_edge(const bool initial_step);
