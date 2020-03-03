@@ -136,7 +136,7 @@ void GLSNavierStokesSharpSolver<dim>::define_particules() {
             particules[0].resize(3 * dim);
             //particules[1].resize(3 * dim);
             //x y
-            particules[0][0] = 0.1;
+            particules[0][0] = 0;
             particules[0][1] = 0;
             //Vx Vy
             particules[0][2] = 0;
@@ -241,42 +241,46 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                 const Point<dim> eval_point(particules[p][5] * cos(i * 2 * PI / (nb_evaluation)) + center_x,
                                             particules[p][5] * sin(i * 2 * PI / (nb_evaluation)) + center_y);
                 const auto &cell = GridTools::find_active_cell_around_point(this->dof_handler, eval_point);
-                Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point);
-                cell->get_dof_indices(local_dof_indices);
-                double u_1 = 0;
-                double v_1 = 0;
-                u_1 = -sin(i * 2 * PI / (nb_evaluation));
-                v_1 = cos(i * 2 * PI / (nb_evaluation));
-                double U1 =
-                        u_1 * cos(i * 2 * PI / (nb_evaluation) - PI / 2) +
-                        v_1 * sin(i * 2 * PI / (nb_evaluation) - PI / 2);
+                if (cell->is_locally_owned()) {
+                    Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point);
 
-                const Point<dim> eval_point_2(eval_point[0] + dr * cos(i * 2 * PI / (nb_evaluation)),
-                                              eval_point[1] + dr * sin(i * 2 * PI / (nb_evaluation)));
-                const auto &cell_2 = GridTools::find_active_cell_around_point(this->dof_handler, eval_point_2);
-                second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, eval_point_2);
-                cell_2->get_dof_indices(local_dof_indices);
-                double u_2 = 0;
-                double v_2 = 0;
-                for (unsigned int j = 0; j < 12; j = j + 3) {
-                    u_2 += this->fe.shape_value(j, second_point_v) * this->present_solution(local_dof_indices[j]);
-                    v_2 += this->fe.shape_value(j + 1, second_point_v) *
-                           this->present_solution(local_dof_indices[j + 1]);
+                    cell->get_dof_indices(local_dof_indices);
+                    double u_1 = 0;
+                    double v_1 = 0;
+                    u_1 = -sin(i * 2 * PI / (nb_evaluation));
+                    v_1 = cos(i * 2 * PI / (nb_evaluation));
+                    double U1 =
+                            u_1 * cos(i * 2 * PI / (nb_evaluation) - PI / 2) +
+                            v_1 * sin(i * 2 * PI / (nb_evaluation) - PI / 2);
+
+                    const Point<dim> eval_point_2(eval_point[0] + dr * cos(i * 2 * PI / (nb_evaluation)),
+                                                  eval_point[1] + dr * sin(i * 2 * PI / (nb_evaluation)));
+                    const auto &cell_2 = GridTools::find_active_cell_around_point(this->dof_handler, eval_point_2);
+                    second_point_v = immersed_map.transform_real_to_unit_cell(cell_2, eval_point_2);
+                    cell_2->get_dof_indices(local_dof_indices);
+                    double u_2 = 0;
+                    double v_2 = 0;
+                    for (unsigned int j = 0; j < 12; j = j + 3) {
+                        u_2 += this->fe.shape_value(j, second_point_v) * this->present_solution(local_dof_indices[j]);
+                        v_2 += this->fe.shape_value(j + 1, second_point_v) *
+                               this->present_solution(local_dof_indices[j + 1]);
+                    }
+                    double U2 =
+                            u_2 * cos(i * 2 * PI / (nb_evaluation) - PI / 2) +
+                            v_2 * sin(i * 2 * PI / (nb_evaluation) - PI / 2);
+                    double du_dr = (U2 / (particules[p][5] + dr) - U1 / particules[p][5]) / dr;
+                    //std::cout << "du_dr " <<du_dr << std::endl;
+                    //std::cout << "local shear stress: " <<du_dr*mu*radius << std::endl;
+                    t_torque += particules[p][5] * du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] /
+                                (nb_evaluation - 1);
+                    fx_v += du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] / (nb_evaluation - 1) *
+                            cos(i * 2 * PI / (nb_evaluation) - PI / 2);
+                    fy_v += du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] / (nb_evaluation - 1) *
+                            sin(i * 2 * PI / (nb_evaluation) - PI / 2);
                 }
-                double U2 =
-                        u_2 * cos(i * 2 * PI / (nb_evaluation) - PI / 2) +
-                        v_2 * sin(i * 2 * PI / (nb_evaluation) - PI / 2);
-                double du_dr = (U2 / (particules[p][5] + dr) - U1 / particules[p][5]) / dr;
-                //std::cout << "du_dr " <<du_dr << std::endl;
-                //std::cout << "local shear stress: " <<du_dr*mu*radius << std::endl;
-                t_torque += particules[p][5] * du_dr * mu * particules[p][5] * 2 * PI * particules[p][5]/ (nb_evaluation - 1);
-                fx_v += du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] / (nb_evaluation - 1) *
-                        cos(i * 2 * PI / (nb_evaluation) - PI / 2);
-                fy_v += du_dr * mu * particules[p][5] * 2 * PI * particules[p][5] / (nb_evaluation - 1) *
-                        sin(i * 2 * PI / (nb_evaluation) - PI / 2);
             }
 
-            std::cout <<'particule : '<< p << " total_torque :" << t_torque << std::endl;
+            std::cout <<"particule : "<< p << " total_torque :" << t_torque << std::endl;
 
 
             fx_p_0 = 0;
@@ -296,43 +300,59 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                 const Point<dim> eval_point_4(eval_point[0] + 3 * dr * cos(i * 2 * PI / (nb_evaluation)),
                                               eval_point[1] + 3 * dr * sin(i * 2 * PI / (nb_evaluation)));
                 const auto &cell = GridTools::find_active_cell_around_point(this->dof_handler, eval_point_2);
-                const auto &cell2 = GridTools::find_active_cell_around_point(this->dof_handler, eval_point_3);
-                const auto &cell3 = GridTools::find_active_cell_around_point(this->dof_handler, eval_point_4);
+                if (cell->is_locally_owned()) {
+                    const auto &cell2 = GridTools::find_active_cell_around_point(this->dof_handler, eval_point_3);
+                    const auto &cell3 = GridTools::find_active_cell_around_point(this->dof_handler, eval_point_4);
 
-                Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point_2);
-                Point<dim> second_point_v_2 = immersed_map.transform_real_to_unit_cell(cell2, eval_point_3);
-                Point<dim> second_point_v_3 = immersed_map.transform_real_to_unit_cell(cell3, eval_point_4);
-                cell->get_dof_indices(local_dof_indices);
-                cell2->get_dof_indices(local_dof_indices_2);
-                cell3->get_dof_indices(local_dof_indices_3);
-                double P_1 = 0;
-                double P_2 = 0;
-                double P_3 = 0;
-                for (unsigned int j = 2; j < 12; j = j + 3) {
-                    P_1 += this->fe.shape_value(j, second_point_v) * this->present_solution(local_dof_indices[j]);
-                    P_2 += this->fe.shape_value(j, second_point_v_2) * this->present_solution(local_dof_indices_2[j]);
-                    P_3 += this->fe.shape_value(j, second_point_v_3) * this->present_solution(local_dof_indices_3[j]);
+                    Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell, eval_point_2);
+                    Point<dim> second_point_v_2 = immersed_map.transform_real_to_unit_cell(cell2, eval_point_3);
+                    Point<dim> second_point_v_3 = immersed_map.transform_real_to_unit_cell(cell3, eval_point_4);
+                    cell->get_dof_indices(local_dof_indices);
+
+                    cell2->get_dof_indices(local_dof_indices_2);
+                    cell3->get_dof_indices(local_dof_indices_3);
+                    double P_1 = 0;
+                    double P_2 = 0;
+                    double P_3 = 0;
+                    for (unsigned int j = 2; j < 12; j = j + 3) {
+                        P_1 += this->fe.shape_value(j, second_point_v) * this->present_solution(local_dof_indices[j]);
+                        P_2 += this->fe.shape_value(j, second_point_v_2) *
+                               this->present_solution(local_dof_indices_2[j]);
+                        P_3 += this->fe.shape_value(j, second_point_v_3) *
+                               this->present_solution(local_dof_indices_3[j]);
+                    }
+                    double P2_temp = P_1 + (P_1 - P_2) + ((P_1 - P_2) - (P_2 - P_3));
+                    double P2 = P2_temp;//+(P2_temp-P_1)+((P2_temp-P_1)-(P_1-P_2));
+                    double P = P_1 + (P_1 - P_2) * 1;
+                    double P3 = P_1;
+                    fx_p_2 += P2 * -cos(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
+                    fy_p_2 += P2 * -sin(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
+                    fx_p_1 += P * -cos(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
+                    fy_p_1 += P * -sin(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
+                    fx_p_0 += P3 * -cos(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
+                    fy_p_0 += P3 * -sin(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
+
                 }
-                double P2_temp = P_1 + (P_1 - P_2) + ((P_1 - P_2) - (P_2 - P_3));
-                double P2 = P2_temp;//+(P2_temp-P_1)+((P2_temp-P_1)-(P_1-P_2));
-                double P = P_1 + (P_1 - P_2) * 1;
-                double P3 = P_1;
-                fx_p_2 += P2 * -cos(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
-                fy_p_2 += P2 * -sin(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
-                fx_p_1 += P * -cos(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
-                fy_p_1 += P * -sin(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
-                fx_p_0 += P3 * -cos(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
-                fy_p_0 += P3 * -sin(i * 2 * PI / (nb_evaluation)) * 2 * PI * particules[p][5] / (nb_evaluation - 1);
-
             }
-            std::cout << "ordre 0 fx_P: " << fx_p_0 << std::endl;
-            std::cout << "ordre 0 fy_P: " << fy_p_0 << std::endl;
-            std::cout << "ordre 1 fx_P: " << fx_p_1 << std::endl;
-            std::cout << "ordre 1 fy_P: " << fy_p_1 << std::endl;
-            std::cout << "ordre 2 fx_P: " << fx_p_2 << std::endl;
-            std::cout << "ordre 2 fy_P: " << fy_p_2 << std::endl;
-            std::cout << "fx_v: " << fx_v << std::endl;
-            std::cout << "fy_v: " << fy_v << std::endl;
+            double fx_p_2_ =Utilities::MPI::sum(fx_p_2, this->mpi_communicator);
+            double fy_p_2_ =Utilities::MPI::sum(fy_p_2, this->mpi_communicator);
+            double fx_p_1_ =Utilities::MPI::sum(fx_p_1, this->mpi_communicator);
+            double fy_p_1_ =Utilities::MPI::sum(fy_p_1, this->mpi_communicator);
+            double fx_p_0_ =Utilities::MPI::sum(fx_p_0, this->mpi_communicator);
+            double fy_p_0_ =Utilities::MPI::sum(fy_p_0, this->mpi_communicator);
+            double fx_v_ =Utilities::MPI::sum(fx_v, this->mpi_communicator);
+            double fy_v_ =Utilities::MPI::sum(fy_v, this->mpi_communicator);
+            if  (this->this_mpi_process == 0){
+            std::cout << "ordre 0 fx_P: " << fx_p_0_ << std::endl;
+            std::cout << "ordre 0 fy_P: " << fy_p_0_ << std::endl;
+            std::cout << "ordre 1 fx_P: " << fx_p_1_ << std::endl;
+            std::cout << "ordre 1 fy_P: " << fy_p_1_ << std::endl;
+            std::cout << "ordre 2 fx_P: " << fx_p_2_ << std::endl;
+            std::cout << "ordre 2 fy_P: " << fy_p_2_ << std::endl;
+            std::cout << "fx_v: " << fx_v_ << std::endl;
+            std::cout << "fy_v: " << fy_v_ << std::endl;
+            }
+
         }
     }
 }
@@ -1854,6 +1874,10 @@ GLSNavierStokesSharpSolver<dim>::solve()
       //clear_pressure();
       
       printTime(this->pcout, this->simulationControl);
+      if (this->simulationControl.getParameters().method == Parameters::SimulationControl::TimeSteppingMethod::steady){
+          this->set_initial_condition(this->nsparam.initialCondition->type,
+                                      this->nsparam.restartParameters.restart);
+      }
       if (!this->simulationControl.firstIter())
         {
           NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
