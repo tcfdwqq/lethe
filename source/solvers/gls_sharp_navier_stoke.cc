@@ -333,12 +333,12 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
             endc = this->dof_handler.end();*/
 
     //define the minimal cell side length
-    //double min_cell_d=(GridTools::minimal_cell_diameter(this->triangulation)*GridTools::minimal_cell_diameter(this->triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(this->triangulation)*GridTools::minimal_cell_diameter(this->triangulation)));
+    double min_cell_d=(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation)));
     //std::cout << "min cell dist: " << min_cell_d << std::endl;
 
     //loop on all the cell to define if the sharp edge cut them
     //for (; cell != endc; ++cell)
-    std::vector<bool> set_pressure;
+    std::vector<int> set_pressure;
     set_pressure.resize(particules.size());
     for (const auto &cell : cell_iterator) {
         if (cell->is_locally_owned()) {
@@ -347,6 +347,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
             for (unsigned int p = 0; p < particules.size(); ++p) {
                 unsigned int count_small = 0;
+                unsigned int count_small_half = 0;
                 /*std::cout << "particule size "<< particules[p][5] << std::endl;
                 std::cout << "particule size "<< particules[p][particules[p].size()-1] << std::endl;*/
                 if (dim == 2) {
@@ -364,37 +365,33 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                     if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= particules[p][particules[p].size()-1]) {
                         ++count_small;
                     }
+                    if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= (particules[p][particules[p].size()-1])/2) {
+                        ++count_small_half;
+                    }
                 }
-
-
-                if (count_small == local_dof_indices.size() & set_pressure[p] == false) {
+                int pressure_check=Utilities::MPI::sum(set_pressure[p], this->mpi_communicator);
+                if (count_small_half == local_dof_indices.size() & pressure_check == 0) {
                     //impose pressure inside the the particule
-                    set_pressure[p] = true;
+                    set_pressure[p] = 1;
                     unsigned int global_index_overrigth = local_dof_indices[dim];
                     //clear the line
-                    double sum_line = 0;
+
+
                     for (unsigned int m = 0; m < active_neighbors.size(); m++) {
-                        const auto &cell_3 = active_neighbors[m];
-                        cell_3->get_dof_indices(local_dof_indices_3);
-                        for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
-                            sum_line += abs(this->system_matrix(global_index_overrigth, local_dof_indices_3[o]));
-                        }
-                    }
-                    if (sum_line > 0) {
-                        for (unsigned int m = 0; m < active_neighbors.size(); m++) {
                             const auto &cell_3 = active_neighbors[m];
                             cell_3->get_dof_indices(local_dof_indices_3);
                             for (unsigned int o = 0; o < this->dof_handler.n_dofs(); ++o) {
                                 this->system_matrix.set(global_index_overrigth, o, 0);
                             }
                         }
-                        //std::cout << "pressure dof :"<< global_index_overrigth<< " sum_line : " << sum_line << std::endl;
+                    std::cout << "pressure dof : "<< global_index_overrigth<< std::endl;
 
-                        this->system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                                1);
-                        this->system_rhs(global_index_overrigth) = 0;
-                    }
+                    this->system_matrix.set(global_index_overrigth, global_index_overrigth,
+                                                min_cell_d);
+                    this->system_rhs(global_index_overrigth) = 0;
                 }
+
+
 
                 //std::cout << "dof_overright start  "<< count_small   << std::endl;
                 //if the cell is cut by the IB the count wont equal 0 or the number of total dof in a cell
@@ -415,6 +412,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                 if (dof_done(local_dof_indices[l]) == 0 &
                                     this->locally_owned_dofs.is_element(local_dof_indices[l])) {
                                     dof_done(local_dof_indices[l]) += 1;
+                                    // define which dof is going to be redefine
+                                    unsigned int global_index_overrigth = local_dof_indices[l];
                                     //std::cout << "local dof_done "<< dof_done(local_dof_indices[l])<< std::endl;
                                     //define the distance vector between the immersed boundary and the dof support point for each dof
                                     Tensor<1, dim, double> vect_dist = (support_points[local_dof_indices[l]] -
@@ -486,11 +485,11 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     //std::cout << "second_point double : "<< second_point_v_2<< std::endl;
                                     //std::cout << "second_point : "<< second_point_v<< std::endl;
 
-                                    // define which dof is going to be redefine
-                                    unsigned int global_index_overrigth = local_dof_indices[l];
+
                                     //get a idea of the order of magnetude of the value in the matrix to define the stencil in the same range of value
-                                    double sum_line = this->system_matrix(global_index_overrigth,
-                                                                          global_index_overrigth);
+                                    //double sum_line = this->system_matrix(global_index_overrigth,
+                                                                   //       global_index_overrigth);
+                                    double sum_line = min_cell_d;
 
 
                                     //clear the current line of this dof  by looping on the neighbors cell of this dof and clear all the associated dof
@@ -503,14 +502,11 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     }
 
                                     //define the new matrix entry for this dof
-                                    if (vect_dist.norm() != 0) {
+                                    if (true) {
                                         // first the dof itself
-                                        //this->system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                                                //-6 / (1 / sum_line));
 
                                         unsigned int n = k;
                                         // then the third point trough interpolation from the dof of the cell in which the third point is
-                                        //while (n < local_dof_indices_2.size()) {
                                         for (unsigned int n = k; n < local_dof_indices.size(); n += dim + 1) {
                                             if (global_index_overrigth == local_dof_indices_2[n]) {
                                                 this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
@@ -524,17 +520,9 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                                         //3*this->fe.shape_value(n, second_point_v)*sum_line + -8*this->fe.shape_value(n, third_point_v)*sum_line );
                                             }
 
-                                            /*if (n < (dim + 1) * 4) {
-                                                n = n + dim + 1;
-                                            } else {
-                                                n = n + dim;
-                                            }*/
                                         }
-                                    } else {
-                                        this->system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                                                sum_line);
-
                                     }
+
                                     // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary conmdition as a dirichlet
                                     if (initial_step) {
                                         // different boundary condition depending if the odf is vx or vy and if the problem we solve
@@ -899,8 +887,8 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
                     ++count_small;
                 }
             }
-                //if (count_small != 0 and count_small!= local_dof_indices.size()){
-                    if (count_small != 0 ){
+                if (count_small != 0 and count_small!= local_dof_indices.size()){
+                    //if (count_small != 0 ){
                     assemble_bool=false;
                     break;
                 }
