@@ -428,6 +428,20 @@ namespace Parameters
     void
     parse_parameters(ParameterHandler &prm);
   };
+  class Particules{
+        // Time measurement in the simulation. None, at each iteration, only at the
+        // end
+  public:
+        unsigned int nb ;
+        std::vector<std::vector<double>>  particules;
+
+        static void
+        declare_parameters(ParameterHandler &prm);
+        static void
+        declare_default_entry(ParameterHandler &prm);
+        void
+        parse_parameters(ParameterHandler &prm);
+  };
 
 } // namespace Parameters
 #endif

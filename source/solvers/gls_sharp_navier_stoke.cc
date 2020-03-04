@@ -31,6 +31,7 @@ GLSNavierStokesSharpSolver<dim>::GLSNavierStokesSharpSolver(
       p_nsparam,
       p_degreeVelocity,
       p_degreePressure)
+
 {
 
 }
@@ -71,115 +72,46 @@ void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::define_particules() {
     //define position and velocity of particules
-    if (couette==true){
-        particules.resize(2);
-        particules[0].resize(3*dim+1);
-        particules[1].resize(3*dim+1);
+        particules.resize(this->nsparam.particulesParameters.nb);
         // define position of particules
         //x y z
         if (dim ==2) {
-            particules[0].resize(3*dim);
-            particules[1].resize(3*dim);
-            //x y
-            particules[0][0] = 0;
-            particules[0][1] = 0;
-            particules[1][0] = 0;
-            particules[1][1] = 0;
-            //Vx Vy
-            particules[0][2] = 0;
-            particules[0][3] = 0;
-            particules[1][2] = 0;
-            particules[1][3] = 0;
-            //omega
-            particules[0][4] = 1;
-            particules[1][4] = 0;
-            //radius
-            particules[0][5] = 0.6;
-            particules[1][5] = 0.9;
+            for (unsigned int i=0 ; i< this->nsparam.particulesParameters.nb;++i) {
+                particules[i].resize(3 * dim);
+                //x y
+                particules[i][0] = this->nsparam.particulesParameters.particules[i][0];
+                particules[i][1] = this->nsparam.particulesParameters.particules[i][1];
+                //Vx Vy
+                particules[i][2] = this->nsparam.particulesParameters.particules[i][3];
+                particules[i][3] = this->nsparam.particulesParameters.particules[i][4];
+                //omega
+                particules[i][4] = this->nsparam.particulesParameters.particules[i][8];
+                //radius
+                particules[i][5] = this->nsparam.particulesParameters.particules[i][9];;
+            }
         }
+
         if (dim ==3) {
-            particules[0].resize(3*dim+1);
-            particules[1].resize(3*dim+1);
-            //x y
-            particules[0][0] = 0;
-            particules[0][1] = 0;
-            particules[0][2] = 0;
-            particules[1][0] = 0;
-            particules[1][1] = 0;
-            particules[1][2] = 0;
-            //Vx Vy
-            particules[0][3] = 0;
-            particules[0][4] = 0;
-            particules[0][5] = 0;
-            particules[1][3] = 0;
-            particules[1][4] = 0;
-            particules[1][5] = 0;
-            //omega x y z
-            particules[0][6] = 0;
-            particules[0][7] = 0;
-            particules[0][8] = 0;
-            particules[1][6] = 0;
-            particules[1][7] = 0;
-            particules[1][8] = 0;
-            //radius
-            particules[0][9] = radius;
-            particules[1][9] = radius_2;
+            for (unsigned int i=0 ; i< this->nsparam.particulesParameters.nb;++i) {
+                particules[i].resize(3 * dim+1);
+
+                //x y
+                particules[i][0] = this->nsparam.particulesParameters.particules[i][0];
+                particules[i][1] = this->nsparam.particulesParameters.particules[i][1];
+                particules[i][2] = this->nsparam.particulesParameters.particules[i][2];
+
+                //Vx Vy
+                particules[i][3] = this->nsparam.particulesParameters.particules[i][3];
+                particules[i][4] = this->nsparam.particulesParameters.particules[i][4];
+                particules[i][5] = this->nsparam.particulesParameters.particules[i][5];
+                //omega
+                particules[i][6] = this->nsparam.particulesParameters.particules[i][6];
+                particules[i][7] = this->nsparam.particulesParameters.particules[i][7];
+                particules[i][8] = this->nsparam.particulesParameters.particules[i][8];
+                //radius
+                particules[i][9] = this->nsparam.particulesParameters.particules[i][9];;
+            }
         }
-    }
-    else {
-
-        //particules[0].resize(3 * dim + 1);
-        // define position of particules
-        //x y z
-        if (dim == 2) {
-            particules.resize(1);
-            particules[0].resize(3 * dim);
-            //particules[1].resize(3 * dim);
-            //x y
-            particules[0][0] = 0;
-            particules[0][1] = 0;
-            //Vx Vy
-            particules[0][2] = 0;
-            particules[0][3] = 0;
-            //omega
-            particules[0][4] = 0;
-            //radius
-            particules[0][5] = 0.21;
-
-            //x y
-          /*  particules[1][0] = -0.1;
-            particules[1][1] = 0;
-            //Vx Vy
-            particules[1][2] = 0;
-            particules[1][3] = 0;
-            //omega
-            particules[1][4] = 0;
-            //radius
-            particules[1][5] = 0.1;*/
-        }
-        if (dim == 3) {
-            particules.resize(1);
-            particules[0].resize(3 * dim + 1);
-            //x y
-            particules[0][0] = 0;
-            particules[0][1] = 0;
-            particules[0][2] = 0;
-
-            //Vx Vy
-            particules[0][3] = 0;
-            particules[0][4] = 0;
-            particules[0][5] = 0;
-
-            //omega x y z
-            particules[0][6] = 0;
-            particules[0][7] = 0;
-            particules[0][8] = 0;
-
-            //radius
-            particules[0][9] = radius;
-
-        }
-    }
 }
 
 template <int dim>
@@ -282,8 +214,10 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
             }
 
             double t_torque_ =Utilities::MPI::sum(t_torque, this->mpi_communicator);
-            std::cout <<"particule : "<< p << " total_torque :" << t_torque_ << std::endl;
 
+            if  (this->this_mpi_process == 0){
+                std::cout <<"particule : "<< p << " total_torque :" << t_torque_ << std::endl;
+            }
 
             fx_p_0 = 0;
             fy_p_0 = 0;
@@ -1876,16 +1810,16 @@ GLSNavierStokesSharpSolver<dim>::solve()
       //clear_pressure();
       
       printTime(this->pcout, this->simulationControl);
-      if (this->simulationControl.getParameters().method == Parameters::SimulationControl::TimeSteppingMethod::steady){
-          this->set_initial_condition(this->nsparam.initialCondition->type,
-                                      this->nsparam.restartParameters.restart);
-      }
+      /**/
       if (!this->simulationControl.firstIter())
         {
           NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
             refine_mesh();
             initial_step_bool=true;
-
+            if (this->simulationControl.getParameters().method == Parameters::SimulationControl::TimeSteppingMethod::steady){
+                this->set_initial_condition(this->nsparam.initialCondition->type,
+                                            this->nsparam.restartParameters.restart);
+            }
         }
 
       this->iterate(this->simulationControl.firstIter());

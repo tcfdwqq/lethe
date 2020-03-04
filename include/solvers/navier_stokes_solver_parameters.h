@@ -45,6 +45,7 @@ public:
   Parameters::PostProcessing                      postProcessingParameters;
   Parameters::Restart                             restartParameters;
   Parameters::Manifolds                           manifoldsParameters;
+  Parameters::Particules                          particulesParameters;
   BoundaryConditions::NSBoundaryConditions<dim>   boundaryConditions;
   Parameters::InitialConditions<dim> *            initialCondition;
   AnalyticalSolutions::NSAnalyticalSolution<dim> *analyticalSolution;
@@ -70,6 +71,7 @@ public:
     Parameters::MeshAdaptation::declare_parameters(prm);
     Parameters::NonLinearSolver::declare_parameters(prm);
     Parameters::LinearSolver::declare_parameters(prm);
+    Parameters::Particules::declare_parameters(prm);
     Parameters::PostProcessing::declare_parameters(prm);
     manifoldsParameters.declare_parameters(prm);
 
@@ -97,6 +99,7 @@ public:
     restartParameters.parse_parameters(prm);
     boundaryConditions.parse_parameters(prm);
     manifoldsParameters.parse_parameters(prm);
+    particulesParameters.parse_parameters(prm);
     initialCondition->parse_parameters(prm);
     analyticalSolution->parse_parameters(prm);
     sourceTerm->parse_parameters(prm);
