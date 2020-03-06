@@ -35,6 +35,11 @@ namespace Parameters
     quiet,
     verbose
   };
+  enum class Particule_Assemble_type
+  {
+    NS,
+    mass
+  };
 
   struct SimulationControl
   {
@@ -434,6 +439,7 @@ namespace Parameters
   public:
         unsigned int nb ;
         bool assemble_inside ;
+        Particule_Assemble_type P_assemble;
         std::vector<std::vector<double>>  particules;
 
         static void

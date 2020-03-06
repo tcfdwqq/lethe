@@ -336,7 +336,14 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     double min_cell_d=(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation)));
     //std::cout << "min cell
     // dist: " << min_cell_d << std::endl;
-    min_cell_d=1/min_cell_d;
+    if (dim==2)
+        min_cell_d=(min_cell_d*min_cell_d);
+    if (dim==3)
+        min_cell_d=(min_cell_d*min_cell_d*min_cell_d);
+    //min_cell_d=1;
+
+
+
     //loop on all the cell to define if the sharp edge cut them
     //for (; cell != endc; ++cell)
     std::vector<int> set_pressure;
@@ -371,7 +378,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                     }
                 }
 
-                if(this->nsparam.particulesParameters.assemble_inside ){
+                if(this->nsparam.particulesParameters.assemble_inside & this->nsparam.particulesParameters.P_assemble==Parameters::Particule_Assemble_type::NS){
                     int pressure_check = Utilities::MPI::sum(set_pressure[p], this->mpi_communicator);
 
                     if (count_small_half == local_dof_indices.size() & pressure_check == 0) {
@@ -892,7 +899,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
                     ++count_small;
                 }
             }
-                if(this->nsparam.particulesParameters.assemble_inside){
+                if(this->nsparam.particulesParameters.assemble_inside and this->nsparam.particulesParameters.P_assemble==Parameters::Particule_Assemble_type::NS){
                     if (count_small != 0 and count_small!= local_dof_indices.size()){
                         assemble_bool = false;
                         break;
@@ -1246,16 +1253,106 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
                                                             this->system_rhs);
             }
         }
+
+            else if(this->nsparam.particulesParameters.P_assemble==Parameters::Particule_Assemble_type::mass ){
+                for (unsigned int q = 0; q < n_q_points; ++q) {
+                    if (assemble_matrix) {
+                        for (unsigned int j = 0; j < dofs_per_cell; ++j) {
+                            for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+
+                                local_matrix(i, j) +=(phi_u[j] * phi_u[i]+phi_p[j] * phi_p[i]) *fe_values.JxW(q);
+
+
+                            }
+                        }
+                        /*// Assembly of the right-hand side
+                        for (unsigned int i = 0; i < dofs_per_cell; ++i) {
+                            // Navier-Stokes Residual
+
+                            // Residual associated with BDF schemes
+                            if (scheme ==
+                                Parameters::SimulationControl::TimeSteppingMethod::bdf1)
+                                local_rhs(i) -=
+                                        bdf_coefs[0] *
+                                        (present_velocity_values[q] - p1_velocity_values[q]) *
+                                        phi_u[i] * fe_values.JxW(q);
+
+                            if (scheme ==
+                                Parameters::SimulationControl::TimeSteppingMethod::bdf2)
+                                local_rhs(i) -=
+                                        (bdf_coefs[0] * (present_velocity_values[q] * phi_u[i]) +
+                                         bdf_coefs[1] * (p1_velocity_values[q] * phi_u[i]) +
+                                         bdf_coefs[2] * (p2_velocity_values[q] * phi_u[i])) *
+                                        fe_values.JxW(q);
+
+                            if (scheme ==
+                                Parameters::SimulationControl::TimeSteppingMethod::bdf3)
+                                local_rhs(i) -=
+                                        (bdf_coefs[0] * (present_velocity_values[q] * phi_u[i]) +
+                                         bdf_coefs[1] * (p1_velocity_values[q] * phi_u[i]) +
+                                         bdf_coefs[2] * (p2_velocity_values[q] * phi_u[i]) +
+                                         bdf_coefs[3] * (p3_velocity_values[q] * phi_u[i])) *
+                                        fe_values.JxW(q);
+
+                            // Residuals associated with SDIRK schemes
+                            if (is_sdirk_step1(scheme))
+                                local_rhs(i) -=
+                                        (sdirk_coefs[0][0] *
+                                         (present_velocity_values[q] * phi_u[i]) +
+                                         sdirk_coefs[0][1] * (p1_velocity_values[q] * phi_u[i])) *
+                                        fe_values.JxW(q);
+
+                            if (is_sdirk_step2(scheme)) {
+                                local_rhs(i) -=
+                                        (sdirk_coefs[1][0] *
+                                         (present_velocity_values[q] * phi_u[i]) +
+                                         sdirk_coefs[1][1] *
+                                         (p1_velocity_values[q] * phi_u[i]) +
+                                         sdirk_coefs[1][2] *
+                                         (p2_velocity_values[q] * phi_u[i])) *
+                                        fe_values.JxW(q);
+                            }
+
+                            if (is_sdirk_step3(scheme)) {
+                                local_rhs(i) -=
+                                        (sdirk_coefs[2][0] *
+                                         (present_velocity_values[q] * phi_u[i]) +
+                                         sdirk_coefs[2][1] *
+                                         (p1_velocity_values[q] * phi_u[i]) +
+                                         sdirk_coefs[2][2] *
+                                         (p2_velocity_values[q] * phi_u[i]) +
+                                         sdirk_coefs[2][3] *
+                                         (p3_velocity_values[q] * phi_u[i])) *
+                                        fe_values.JxW(q);
+                            }*/
+                        }
+                    }
+
+                    cell->get_dof_indices(local_dof_indices);
+
+                    // The non-linear solver assumes that the nonzero constraints have
+                    // already been applied to the solution
+                    const AffineConstraints<double> &constraints_used =
+                            this->zero_constraints;
+                    // initial_step ? nonzero_constraints : zero_constraints;
+                    if (assemble_matrix) {
+                        constraints_used.distribute_local_to_global(local_matrix,
+                                                                    local_rhs,
+                                                                    local_dof_indices,
+                                                                    system_matrix,
+                                                                    this->system_rhs);
+                    } else {
+                        constraints_used.distribute_local_to_global(local_rhs,
+                                                                    local_dof_indices,
+                                                                    this->system_rhs);
+                    }
+
+                }
             else{
-                /*for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
-                    //count the number of dof that are smaller or larger then the radius of the particules
-                    //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
-                    this->system_rhs(local_dof_indices[j])=0;
-                    system_matrix.set(local_dof_indices[j],local_dof_indices[j],1);
-                }*/
+
+            }
             }
         }
-    }
     //std::cout << "this MPI porcess finish matrix assemble and start compress : "<< this->this_mpi_process<< std::endl;
     if (assemble_matrix)
         system_matrix.compress(VectorOperation::add);
@@ -1804,7 +1901,7 @@ GLSNavierStokesSharpSolver<dim>::solve()
   this->setup_dofs();
   this->set_initial_condition(this->nsparam.initialCondition->type,
                               this->nsparam.restartParameters.restart);
-
+  initial_step_bool=true;
   while (this->simulationControl.integrate())
     {
       //clear_pressure();
@@ -1815,10 +1912,11 @@ GLSNavierStokesSharpSolver<dim>::solve()
         {
           NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
             refine_mesh();
-            initial_step_bool=true;
+
             if (this->simulationControl.getParameters().method == Parameters::SimulationControl::TimeSteppingMethod::steady){
                 this->set_initial_condition(this->nsparam.initialCondition->type,
                                             this->nsparam.restartParameters.restart);
+                initial_step_bool=true;
             }
         }
 

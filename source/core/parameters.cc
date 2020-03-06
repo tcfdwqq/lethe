@@ -750,7 +750,11 @@ namespace Parameters {
             prm.declare_entry("assemble inside",
                               "true",
                               Patterns::Bool(),
-                              "Bool to know if the solver assemble the NS equation inside the particule");
+                              "Bool to know if the solver assemble the equation inside the particule");
+            prm.declare_entry("assemble type",
+                              "NS",
+                              Patterns::Selection("NS|mass"),
+                              "if assemble inside is true define what type of equation is assemble NS or mass");
 
             prm.enter_subsection("x y z vx vy vz omega_x omega_y omega_z radius particule 0");
             {
@@ -813,6 +817,12 @@ namespace Parameters {
         {
             nb = prm.get_integer("number of particules");
             assemble_inside = prm.get_bool("assemble inside");
+            const std::string op = prm.get("assemble type");
+            if (op == "NS")
+                P_assemble = Particule_Assemble_type ::NS;
+            if (op == "mass")
+                P_assemble = Particule_Assemble_type ::mass;
+
             particules.resize(nb);
             for (unsigned int i = 0; i < nb; ++i) {
                 particules[i].resize(10);
