@@ -747,6 +747,10 @@ namespace Parameters {
                               "1",
                               Patterns::Integer(),
                               "Number of particules reprensented by IB max number of particules = 10 ");
+            prm.declare_entry("assemble inside",
+                              "true",
+                              Patterns::Bool(),
+                              "Bool to know if the solver assemble the NS equation inside the particule");
 
             prm.enter_subsection("x y z vx vy vz omega_x omega_y omega_z radius particule 0");
             {
@@ -808,6 +812,7 @@ namespace Parameters {
         prm.enter_subsection("particules");
         {
             nb = prm.get_integer("number of particules");
+            assemble_inside = prm.get_bool("assemble inside");
             particules.resize(nb);
             for (unsigned int i = 0; i < nb; ++i) {
                 particules[i].resize(10);

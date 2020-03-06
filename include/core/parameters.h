@@ -433,6 +433,7 @@ namespace Parameters
         // end
   public:
         unsigned int nb ;
+        bool assemble_inside ;
         std::vector<std::vector<double>>  particules;
 
         static void

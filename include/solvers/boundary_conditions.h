@@ -186,7 +186,7 @@ namespace BoundaryConditions
   void
   NSBoundaryConditions<dim>::declare_parameters(ParameterHandler &prm)
   {
-    max_size = 4;
+    max_size = 6;
 
     prm.enter_subsection("boundary conditions");
     {
@@ -224,9 +224,15 @@ namespace BoundaryConditions
       }
       prm.leave_subsection();
 
-      prm.enter_subsection("bc 3");
+      prm.enter_subsection("bc 4");
       {
-        declareDefaultEntry(prm, 3);
+        declareDefaultEntry(prm, 4);
+      }
+      prm.leave_subsection();
+
+      prm.enter_subsection("bc 5");
+      {
+          declareDefaultEntry(prm, 5);
       }
       prm.leave_subsection();
     }
@@ -276,6 +282,22 @@ namespace BoundaryConditions
             parse_boundary(prm, 3);
           }
           prm.leave_subsection();
+        }
+      if (size >= 5)
+        {
+            prm.enter_subsection("bc 4");
+            {
+                parse_boundary(prm, 4);
+            }
+            prm.leave_subsection();
+        }
+      if (size >= 6)
+        {
+            prm.enter_subsection("bc 5");
+            {
+                parse_boundary(prm, 5);
+            }
+            prm.leave_subsection();
         }
     }
     prm.leave_subsection();

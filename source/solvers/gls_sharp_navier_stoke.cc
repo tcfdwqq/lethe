@@ -334,8 +334,9 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
     //define the minimal cell side length
     double min_cell_d=(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation)));
-    //std::cout << "min cell dist: " << min_cell_d << std::endl;
-
+    //std::cout << "min cell
+    // dist: " << min_cell_d << std::endl;
+    min_cell_d=1/min_cell_d;
     //loop on all the cell to define if the sharp edge cut them
     //for (; cell != endc; ++cell)
     std::vector<int> set_pressure;
@@ -369,26 +370,30 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                         ++count_small_half;
                     }
                 }
-                int pressure_check=Utilities::MPI::sum(set_pressure[p], this->mpi_communicator);
-                if (count_small_half == local_dof_indices.size() & pressure_check == 0) {
-                    //impose pressure inside the the particule
-                    set_pressure[p] = 1;
-                    unsigned int global_index_overrigth = local_dof_indices[dim];
-                    //clear the line
+
+                if(this->nsparam.particulesParameters.assemble_inside ){
+                    int pressure_check = Utilities::MPI::sum(set_pressure[p], this->mpi_communicator);
+
+                    if (count_small_half == local_dof_indices.size() & pressure_check == 0) {
+                        //impose pressure inside the the particule
+                        set_pressure[p] = 1;
+                        unsigned int global_index_overrigth = local_dof_indices[dim];
+                        //clear the line
 
 
-                    for (unsigned int m = 0; m < active_neighbors.size(); m++) {
+                        for (unsigned int m = 0; m < active_neighbors.size(); m++) {
                             const auto &cell_3 = active_neighbors[m];
                             cell_3->get_dof_indices(local_dof_indices_3);
                             for (unsigned int o = 0; o < this->dof_handler.n_dofs(); ++o) {
                                 this->system_matrix.set(global_index_overrigth, o, 0);
                             }
                         }
-                    std::cout << "pressure dof : "<< global_index_overrigth<< std::endl;
+                        std::cout << "pressure dof : " << global_index_overrigth << std::endl;
 
-                    this->system_matrix.set(global_index_overrigth, global_index_overrigth,
+                        this->system_matrix.set(global_index_overrigth, global_index_overrigth,
                                                 min_cell_d);
-                    this->system_rhs(global_index_overrigth) = 0;
+                        this->system_rhs(global_index_overrigth) = 0;
+                    }
                 }
 
 
@@ -576,7 +581,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     //std::cout << "barrier done"<< std::endl;
     system_matrix.compress(VectorOperation::insert);
     this->system_rhs.compress(VectorOperation::insert);
-    //std::cout << "sharp edge done on this MPI process :" << this->this_mpi_process << std::endl;
+   // std::cout << "sharp edge done on this MPI process :" << this->this_mpi_process << std::endl;
     initial_step_bool=false;
 }
 
@@ -887,10 +892,17 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
                     ++count_small;
                 }
             }
-                if (count_small != 0 and count_small!= local_dof_indices.size()){
-                    //if (count_small != 0 ){
-                    assemble_bool=false;
-                    break;
+                if(this->nsparam.particulesParameters.assemble_inside){
+                    if (count_small != 0 and count_small!= local_dof_indices.size()){
+                        assemble_bool = false;
+                        break;
+                    }
+                }
+                else {
+                    if (count_small != 0) {
+                        assemble_bool = false;
+                        break;
+                    }
                 }
             }
             // assemble the cell only if the cell is not cut by a IB
