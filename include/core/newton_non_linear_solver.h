@@ -43,8 +43,6 @@ NewtonNonLinearSolver<VectorType>::solve(
   while ((current_res > this->params.tolerance) &&
          outer_iteration < this->params.max_iterations)
     {
-
-      solver->pcout << "start Newton iteration: " << outer_iteration<< std::endl;
       solver->evaluation_point = solver->present_solution;
       solver->assemble_matrix_and_rhs(time_stepping_method);
 

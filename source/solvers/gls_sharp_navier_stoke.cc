@@ -326,7 +326,24 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
     //define cell iterator
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
-    // vector that containt if the pressure reference inside the particule as been set.
+    /*typename DoFHandler<dim>::active_cell_iterator cell = this->dof_handler
+            .begin_active(),
+            endc = this->dof_handler.end();*/
+
+    //define the minimal cell side length
+    double min_cell_d=(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation)));
+    //std::cout << "min cell
+    // dist: " << min_cell_d << std::endl;
+//    if (dim==2)
+//        min_cell_d=(min_cell_d*min_cell_d);
+//    if (dim==3)
+//        min_cell_d=(min_cell_d*min_cell_d*min_cell_d);
+//    //min_cell_d=1;
+
+
+
+    //loop on all the cell to define if the sharp edge cut them
+    //for (; cell != endc; ++cell)
     std::vector<int> set_pressure;
     set_pressure.resize(particules.size());
 
