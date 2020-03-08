@@ -336,11 +336,11 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     double min_cell_d=(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation))/sqrt(2*(GridTools::minimal_cell_diameter(*this->triangulation)*GridTools::minimal_cell_diameter(*this->triangulation)));
     //std::cout << "min cell
     // dist: " << min_cell_d << std::endl;
-    if (dim==2)
-        min_cell_d=(min_cell_d*min_cell_d);
-    if (dim==3)
-        min_cell_d=(min_cell_d*min_cell_d*min_cell_d);
-    //min_cell_d=1;
+//    if (dim==2)
+//        min_cell_d=(min_cell_d*min_cell_d);
+//    if (dim==3)
+//        min_cell_d=(min_cell_d*min_cell_d*min_cell_d);
+//    //min_cell_d=1;
 
 
 
