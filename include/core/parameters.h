@@ -258,7 +258,8 @@ namespace Parameters
     {
       gmres,
       bicgstab,
-      amg
+      amg,
+      direct
     };
     SolverType solver;
 

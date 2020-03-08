@@ -120,6 +120,12 @@ private:
                         const double relative_residual,
                         const bool   renewed_matrix);
 
+  void
+  solve_system_Direct(const bool   initial_step,
+                        const double absolute_residual,
+                        const double relative_residual,
+                        const bool   renewed_matrix);
+
   /**
    * AMG preconditioner with ILU smoother and coarsener and GMRES final solver
    */
