@@ -301,7 +301,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
     Point<dim> center_immersed;
-
+    Point<dim> pressure_bridge;
     std::vector<typename DoFHandler<dim>::active_cell_iterator> active_neighbors;
 
     Vector<int > dof_done;
@@ -361,49 +361,81 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
             for (unsigned int p = 0; p < particules.size(); ++p) {
 
                 unsigned int count_small = 0;
-                unsigned int count_small_half = 0;
 
                 if (dim == 2) {
                     center_immersed(0) = particules[p][0];
                     center_immersed(1) = particules[p][1];
+                    // define arbitrary point on the boundary where the pressure will be link between the 2 domain
+                    pressure_bridge(0) = particules[p][0]-pow((particules[p][particules[p].size()-1]*particules[p][particules[p].size()-1])/dim,0.5);
+                    pressure_bridge(1) = particules[p][1]-pow((particules[p][particules[p].size()-1]*particules[p][particules[p].size()-1])/dim,0.5);
                 }
                 else if (dim == 3) {
                     center_immersed(0) = particules[p][0];
                     center_immersed(1) = particules[p][1];
                     center_immersed(2) = particules[p][2];
-                }
+                    // define arbitrary point on the boundary where the pressure will be link between the 2 domain
+                    pressure_bridge(0) = particules[p][0]-pow((particules[p][particules[p].size()-1]*particules[p][particules[p].size()-1])/dim,0.5);
+                    pressure_bridge(1) = particules[p][1]-pow((particules[p][particules[p].size()-1]*particules[p][particules[p].size()-1])/dim,0.5);
+                    pressure_bridge(3) = particules[p][2]-pow((particules[p][particules[p].size()-1]*particules[p][particules[p].size()-1])/dim,0.5);
 
+                }
+                
                 for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
                     //count the number of dof that ar smaller or larger then the radius of the particules
                     //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
                     if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= particules[p][particules[p].size()-1]) {
                         ++count_small;
                     }
-                    if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= (particules[p][particules[p].size()-1])/2) {
-                        ++count_small_half;
-                    }
                 }
 
                 // impose the pressure inside the particule if the inside of the particule is solved
                 if(this->nsparam.particulesParameters.assemble_inside & this->nsparam.particulesParameters.P_assemble==Parameters::Particule_Assemble_type::NS){
-                    if (count_small_half == local_dof_indices.size()  & set_pressure[p] == 0) {
-                        //impose pressure inside the the particule
-                        set_pressure[p] = 1;
-                        unsigned int global_index_overrigth = local_dof_indices[dim];
-                        //clear the line
+                    if (count_small != 0 and count_small != local_dof_indices.size()) {
+                        bool cell_found = false;
+                        try {
+                            //define the cell and check if the point is inside of the cell
+                            const Point<dim, double> p_cell = immersed_map.transform_real_to_unit_cell(
+                                    cell, pressure_bridge);
+                            const double dist_2 = GeometryInfo<dim>::distance_to_unit_cell(p_cell);
 
-                        for (unsigned int m = 0; m < active_neighbors.size(); m++) {
-                            const auto &cell_3 = active_neighbors[m];
-                            cell_3->get_dof_indices(local_dof_indices_3);
-                            for (unsigned int o = 0; o < this->dof_handler.n_dofs(); ++o) {
-                                this->system_matrix.set(global_index_overrigth, o, 0);
+                            //define the cell and check if the point is inside of the cell
+                            if (dist_2 == 0) {
+                                //if the point is in this cell then the dist is equal to 0 and we have found our cell
+                                cell_found = true;
+                                std::cout << "Pressure bridge cell found " << std::endl;
                             }
                         }
-                        std::cout << "pressure dof : " << global_index_overrigth << std::endl;
+                            // may cause error if the point is not in cell
+                        catch (typename MappingQGeneric<dim>::ExcTransformationFailed) {
+                        }
 
-                        this->system_matrix.set(global_index_overrigth, global_index_overrigth,
-                                                sum_line);
-                        this->system_rhs(global_index_overrigth) = 0;
+                        if (cell_found) {
+                            bool inside_done=false;
+                            bool outside_done=false;
+                            unsigned int inside_index;
+                            //loop over all the pressure point in the cell and impose the pressure on one dof inside to be equal to the pressure of one dof outside
+                            for (unsigned int j = dim; j < local_dof_indices.size(); j+=dim+1) {
+                                if ((support_points[local_dof_indices[j]] - center_immersed).norm() <= particules[p][particules[p].size()-1] & inside_done==false) {
+                                    inside_index=local_dof_indices[j];
+
+                                    for (unsigned int m = 0; m < this->dof_handler.n_dofs(); m++) {
+                                        this->system_matrix.set(inside_index, m, 0);
+                                    }
+                                    system_matrix.set(inside_index,inside_index,sum_line);
+                                    inside_done=true;
+
+                                }
+                            }
+                            std::cout << "Pressure_bridge dof : " << inside_index << std::endl;
+                            for (unsigned int j = dim; j < local_dof_indices.size(); j+=dim+1) {
+                                if ((support_points[local_dof_indices[j]] - center_immersed).norm()  > particules[p][particules[p].size()-1] & outside_done==false) {
+                                    system_matrix.set(inside_index,local_dof_indices[j],-sum_line);
+                                    outside_done=true;
+                                }
+                            }
+                            this->system_rhs(inside_index) = 0;
+
+                        }
                     }
                 }
 
