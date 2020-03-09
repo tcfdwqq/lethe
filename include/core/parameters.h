@@ -439,6 +439,7 @@ namespace Parameters
         // end
   public:
         unsigned int nb ;
+        unsigned int order;
         bool assemble_inside ;
         Particule_Assemble_type P_assemble;
         std::vector<std::vector<double>>  particules;

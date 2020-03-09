@@ -750,6 +750,10 @@ namespace Parameters {
                               "1",
                               Patterns::Integer(),
                               "Number of particules reprensented by IB max number of particules = 10 ");
+            prm.declare_entry("stencil order",
+                              "2",
+                              Patterns::Integer(),
+                              "Number of particules reprensented by IB max number of particules = 10 ");
             prm.declare_entry("assemble inside",
                               "true",
                               Patterns::Bool(),
@@ -819,6 +823,7 @@ namespace Parameters {
         prm.enter_subsection("particules");
         {
             nb = prm.get_integer("number of particules");
+            order = prm.get_integer("stencil order");
             assemble_inside = prm.get_bool("assemble inside");
             const std::string op = prm.get("assemble type");
             if (op == "NS")
