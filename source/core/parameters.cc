@@ -727,15 +727,27 @@ namespace Parameters {
         prm.declare_entry("omega X",
                           "0",
                           Patterns::Double(),
-                          "ration speed x ");
+                          "rotation speed x ");
         prm.declare_entry("omega Y",
                           "0",
                           Patterns::Double(),
-                          "ration speed y ");
+                          "rotation speed y ");
         prm.declare_entry("omega Z",
                           "0",
                           Patterns::Double(),
-                          "ration speed z ");
+                          "rotation speed z ");
+        prm.declare_entry("pressure X",
+                          "0",
+                          Patterns::Double(),
+                          "position relative to the center of the particule  for the location of the point where the pressure is impose inside the particule  in X ");
+        prm.declare_entry("pressure Y",
+                          "0",
+                          Patterns::Double(),
+                          "position relative to the center of the particule  for the location of the point where the pressure is impose inside the particule  in Y ");
+        prm.declare_entry("pressure Z",
+                          "0",
+                          Patterns::Double(),
+                          "position relative to the center of the particule  for the location of the point where the pressure is impose inside the particule  in Z ");
         prm.declare_entry("radius",
                           "0.2",
                           Patterns::Double(),
@@ -762,6 +774,18 @@ namespace Parameters {
                               "NS",
                               Patterns::Selection("NS|mass"),
                               "if assemble inside is true define what type of equation is assemble NS or mass");
+            prm.declare_entry("refine mesh inside radius factor",
+                              "0.5",
+                              Patterns::Double(),
+                              "The factor that multiplie the radius to define the inside bound for the refinement of the mesh");
+            prm.declare_entry("refine mesh outside radius factor",
+                              "1.5",
+                              Patterns::Double(),
+                              "The factor that multiplie the radius to define the outside bound for the refinement of the mesh");
+            prm.declare_entry("pressure mpi",
+                              "true",
+                              Patterns::Bool(),
+                              "Bool if using the mpi pressure inside the particule");
 
             prm.enter_subsection("x y z vx vy vz omega_x omega_y omega_z radius particule 0");
             {
@@ -824,7 +848,10 @@ namespace Parameters {
         {
             nb = prm.get_integer("number of particules");
             order = prm.get_integer("stencil order");
+            inside_radius = prm.get_double("refine mesh inside radius factor");
+            outside_radius = prm.get_double("refine mesh outside radius factor");
             assemble_inside = prm.get_bool("assemble inside");
+            pressure_mpi = prm.get_bool("pressure mpi");
             const std::string op = prm.get("assemble type");
             if (op == "NS")
                 P_assemble = Particule_Assemble_type ::NS;
@@ -832,8 +859,10 @@ namespace Parameters {
                 P_assemble = Particule_Assemble_type ::mass;
 
             particules.resize(nb);
+            pressure_offset.resize(nb);
             for (unsigned int i = 0; i < nb; ++i) {
                 particules[i].resize(10);
+                pressure_offset[i].resize(3);
                 std::string section="x y z vx vy vz omega_x omega_y omega_z radius particule "+std::to_string(i);
                 prm.enter_subsection(section);
                 particules[i][0]=prm.get_double("X");
@@ -846,6 +875,9 @@ namespace Parameters {
                 particules[i][7]=prm.get_double("omega Y");
                 particules[i][8]=prm.get_double("omega Z");
                 particules[i][9]=prm.get_double("radius");
+                pressure_offset[i][0]=prm.get_double("pressure X");
+                pressure_offset[i][1]=prm.get_double("pressure Y");
+                pressure_offset[i][2]=prm.get_double("pressure Z");
                 prm.leave_subsection();
             }
             prm.leave_subsection();

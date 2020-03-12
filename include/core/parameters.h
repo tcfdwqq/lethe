@@ -41,6 +41,7 @@ namespace Parameters
     mass
   };
 
+
   struct SimulationControl
   {
     // Method used for time progression of eulerian solvers (steady, unsteady)
@@ -440,9 +441,13 @@ namespace Parameters
   public:
         unsigned int nb ;
         unsigned int order;
+        double inside_radius;
+        double outside_radius;
         bool assemble_inside ;
+        bool pressure_mpi ;
         Particule_Assemble_type P_assemble;
         std::vector<std::vector<double>>  particules;
+        std::vector<std::vector<double>>  pressure_offset;
 
         static void
         declare_parameters(ParameterHandler &prm);

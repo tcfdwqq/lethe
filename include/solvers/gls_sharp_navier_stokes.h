@@ -93,6 +93,9 @@ private:
   void
   set_nodal_values();
 
+  void
+  refine_ib();
+
   /**
    * Interface for the solver for the linear system of equations
    */
