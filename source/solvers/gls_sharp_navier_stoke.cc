@@ -53,7 +53,7 @@ void GLSNavierStokesSharpSolver<dim>::vertices_cell_mapping()
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
     //loop on all the cell and
     for (const auto &cell : cell_iterator) {
-        if (cell->is_locally_owned()) {
+        if (cell->is_locally_owned()| cell->is_ghost()) {
             unsigned int vertices_per_cell = GeometryInfo<dim>::vertices_per_cell;
             for (unsigned int i = 0; i < vertices_per_cell; i++) {
                 //add this cell as neighbors for all it's vertex
@@ -595,19 +595,18 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     for (unsigned int m = 0; m < active_neighbors.size(); m++) {
                                         const auto &cell_3 = active_neighbors[m];
                                         cell_3->get_dof_indices(local_dof_indices_3);
-                                        for (unsigned int o = 0; o < local_dof_indices_2.size(); ++o) {
+                                        for (unsigned int o = 0; o < local_dof_indices_3.size(); ++o) {
                                             this->system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
                                         }
                                     }
-                                    for (unsigned int o = 0; o < this->dof_handler.n_dofs(); ++o) {
+                                    /*for (unsigned int o = 0; o < this->dof_handler.n_dofs(); ++o) {
                                         this->system_matrix.set(global_index_overrigth, o, 0);
-                                    }
+                                    }*/
                                     //define the new matrix entry for this dof
                                     if (true) {
                                         // first the dof itself
 
                                         for (unsigned int n = k; n < local_dof_indices.size(); n += dim + 1) {
-
                                             // first the dof itself
                                             if (global_index_overrigth == local_dof_indices_2[n]) {
 
@@ -620,7 +619,6 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                             }
                                             // then the third point trough interpolation from the dof of the cell in which the third point is
                                             else {
-
                                                 if (this->nsparam.particulesParameters.order==2)
                                                 this->system_matrix.set(global_index_overrigth, local_dof_indices_2[n],
                                                                         -1*this->fe.shape_value(n, second_point_v)*sum_line);
@@ -677,123 +675,12 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                     }
                 }
             }
-
-            /*if(this->nsparam.particulesParameters.assemble_inside & this->nsparam.particulesParameters.P_assemble==Parameters::Particule_Assemble_type::NS & this->nsparam.particulesParameters.pressure_mpi) {
-                int sum_set_pressure_cell = 0;
-                for (unsigned int i = 0; i < set_pressure_cell.size(); i++)
-                    sum_set_pressure_cell += set_pressure_cell[i];
-                if (sum_set_pressure_cell == 1) {
-                    for (unsigned int i = 0; i < set_pressure_cell.size(); i++) {
-                        if (set_pressure_cell[i] == 1) {
-                            set_pressure[i] = Utilities::MPI::this_mpi_process(this->mpi_communicator);
-                        }
-                    }
-                }
-
-
-            }*/
         }
     }
 
 
 
-/*
-    if(this->nsparam.particulesParameters.assemble_inside & this->nsparam.particulesParameters.P_assemble==Parameters::Particule_Assemble_type::NS & this->nsparam.particulesParameters.pressure_mpi) {
-        for (unsigned int ip=0 ; ip <particules.size() ; ++ip)
-        {
-            set_pressure[ip] = Utilities::MPI::min(set_pressure[ip],this->mpi_communicator);
-            std::cout << "ip " << ip << " set pressure " << set_pressure[ip] << std::endl;
 
-        }
-
-        for (unsigned int p2 = 0; p2 < particules.size(); ++p2) {
-            bool pressure_done = false;
-            if (Utilities::MPI::this_mpi_process(this->mpi_communicator) == set_pressure[p2]) {
-                for (const auto &cell : cell_iterator) {
-                    if (cell->is_locally_owned() & pressure_done == false) {
-                        double sum_line = 0;
-                        std::vector<int> set_pressure_cell;
-                        set_pressure_cell.resize(particules.size());
-                        for (unsigned int p = 0; p < particules.size(); ++p) {
-                            fe_values.reinit(cell);
-                            cell->get_dof_indices(local_dof_indices);
-                            unsigned int count_small = 0;
-                            if (dim == 2) {
-                                center_immersed(0) = particules[p][0];
-                                center_immersed(1) = particules[p][1];
-                                // define arbitrary point on the boundary where the pressure will be link between the 2 domain
-                                pressure_bridge(0) = particules[p][0] - pow((particules[p][particules[p].size() - 1] *
-                                                                             particules[p][particules[p].size() - 1]) /
-                                                                            dim,
-                                                                            0.5);
-                                pressure_bridge(1) = particules[p][1] - pow((particules[p][particules[p].size() - 1] *
-                                                                             particules[p][particules[p].size() - 1]) /
-                                                                            dim,
-                                                                            0.5);
-                            } else if (dim == 3) {
-                                center_immersed(0) = particules[p][0];
-                                center_immersed(1) = particules[p][1];
-                                center_immersed(2) = particules[p][2];
-                                // define arbitrary point on the boundary where the pressure will be link between the 2 domain
-                                pressure_bridge(0) = particules[p][0] - pow((particules[p][particules[p].size() - 1] *
-                                                                             particules[p][particules[p].size() - 1]) /
-                                                                            dim,
-                                                                            0.5);
-                                pressure_bridge(1) = particules[p][1] - pow((particules[p][particules[p].size() - 1] *
-                                                                             particules[p][particules[p].size() - 1]) /
-                                                                            dim,
-                                                                            0.5);
-                                pressure_bridge(2) = particules[p][2] - pow((particules[p][particules[p].size() - 1] *
-                                                                             particules[p][particules[p].size() - 1]) /
-                                                                            dim,
-                                                                            0.5);
-
-                            }
-
-                            for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
-                                //count the number of dof that ar smaller or larger then the radius of the particules
-                                //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
-                                if ((support_points[local_dof_indices[j]] - center_immersed).norm() <=
-                                    particules[p][particules[p].size() - 1]) {
-                                    ++count_small;
-                                }
-                            }
-
-                            if (count_small == local_dof_indices.size()) {
-                                set_pressure_cell[p] = 1;
-                            }
-
-                        }
-                        int sum_set_pressure_cell = 0;
-                        for (unsigned int i = 0; i < set_pressure_cell.size(); i++)
-                            sum_set_pressure_cell += set_pressure_cell[i];
-                        if (sum_set_pressure_cell == 1) {
-                            for (unsigned int i = 0; i < set_pressure_cell.size(); i++) {
-                                if (set_pressure_cell[i] == 1 and i == p2) {
-                                    unsigned int pressure_index = local_dof_indices[dim+(2*(dim+1))];
-                                    for (unsigned int qf = 0; qf < n_q_points; ++qf) {
-                                        sum_line += fe_values.JxW(qf) * 10;
-                                    }
-                                    for (unsigned int i = 0; i < set_pressure_cell.size(); i++) {
-                                        system_matrix.set(pressure_index, i, 0);
-                                    }
-                                    system_matrix.set(pressure_index, pressure_index, sum_line);
-                                    this->system_rhs(pressure_index) = 0;
-                                    pressure_done = true;
-                                    std::cout << "Pressure  dof : " << pressure_index << std::endl;
-                                    std::cout << "Pressure  dof position : " << support_points[pressure_index] << std::endl;
-
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    */
-
-    //MPI_Barrier(this->mpi_communicator);
     system_matrix.compress(VectorOperation::insert);
     this->system_rhs.compress(VectorOperation::insert);
     initial_step_bool=false;
