@@ -374,7 +374,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
 
 
-
+/*
     for (const auto &cell : cell_iterator) {
         if (cell->is_locally_owned() ){
             std::vector<int> set_pressure_cell;
@@ -416,7 +416,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
     for (unsigned int ip = 0; ip < dof_proc.size(); ++ip) {
             dof_proc[ip] = Utilities::MPI::min(dof_proc[ip], this->mpi_communicator);
-    }
+    }*/
 
 
 
@@ -482,21 +482,13 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                         }
 
                         if (cell_found) {
-                            bool inside_done = false;
-                            unsigned int inside_index = 0;
+                            unsigned int inside_index = local_dof_indices[dim];
                             //loop over all the pressure point in the cell and impose the pressure on one dof inside to be equal to the pressure of one dof outside
+                            for (unsigned int m = 0; m < this->dof_handler.n_dofs(); m++) {
+                                this->system_matrix.set(inside_index, m, 0);
+                            }
                             for (unsigned int j = dim; j < local_dof_indices.size(); j += dim + 1) {
-                                if ((support_points[local_dof_indices[j]] - center_immersed).norm() <=
-                                    particules[p][particules[p].size() - 1] & inside_done == false) {
-                                    inside_index = local_dof_indices[j];
-
-                                    for (unsigned int m = 0; m < this->dof_handler.n_dofs(); m++) {
-                                        this->system_matrix.set(inside_index, m, 0);
-                                    }
-                                    system_matrix.set(inside_index, inside_index, sum_line);
-                                    inside_done = true;
-
-                                }
+                                    system_matrix.set(inside_index, local_dof_indices[j], sum_line);
                             }
                             std::cout << "Pressure_bridge dof : " << inside_index << std::endl;
                             std::cout << "Pressure_bridge dof : " << support_points[inside_index] << std::endl;
@@ -526,7 +518,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
                             for (unsigned int l = k; l < local_dof_indices.size(); l += dim + 1) {
 
-                                if (dof_proc[local_dof_indices[l]]== Utilities::MPI::this_mpi_process(this->mpi_communicator) & dof_done(local_dof_indices[l])==0) {
+                                if (/*dof_proc[local_dof_indices[l]]== Utilities::MPI::this_mpi_process(this->mpi_communicator) & */dof_done(local_dof_indices[l])==0) {
                                     dof_done(local_dof_indices[l])+=1;
                                     // define which dof is going to be redefine
                                     unsigned int global_index_overrigth = local_dof_indices[l];
