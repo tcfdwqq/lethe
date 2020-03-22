@@ -76,6 +76,9 @@ private:
   sharp_edge(const bool initial_step);
 
   void
+  integrate_particules();
+
+  void
   clear_pressure();
 
   void

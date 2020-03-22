@@ -80,7 +80,7 @@ NewtonNonLinearSolver<VectorType>::solve(
                             << current_res << std::endl;
             }
 
-          if (current_res < 0.9 * last_res || last_res < this->params.tolerance)
+          if (current_res < 1 * last_res || last_res < this->params.tolerance)
             {
               break;
             }
