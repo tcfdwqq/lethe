@@ -324,6 +324,148 @@ void GLSNavierStokesSharpSolver<dim>::integrate_particules() {
 }
 
 template <int dim>
+void GLSNavierStokesSharpSolver<dim>::finish_time_step_particules() {
+    if (this->nsparam.analyticalSolution->calculate_error()){
+        // Update the time of the exact solution to the actual time
+        this->exact_solution->set_time(this->simulationControl.getTime());
+        const double error = this->calculate_L2_error_particules();
+        if (this->simulationControl.getMethod() ==
+            Parameters::SimulationControl::TimeSteppingMethod::steady){
+            this->error_table.clear_current_row();
+            this->error_table.add_value(
+                    "cells", this->triangulation->n_global_active_cells());
+            this->error_table.add_value("error", error);
+
+        }
+        else{
+            this->error_table.clear_current_row();
+            this->error_table.add_value("time",
+                    this->simulationControl.getTime());
+            this->error_table.add_value("error", error);
+        }
+        if (this->nsparam.analyticalSolution->verbosity ==
+            Parameters::Verbosity::verbose){
+            this->pcout << "L2 error : " << error << std::endl;
+        }
+    }
+}
+
+template <int dim>
+double GLSNavierStokesSharpSolver<dim>::calculate_L2_error_particules() {
+    TimerOutput::Scope t(this->computing_timer, "error");
+
+    QGauss<dim>         quadrature_formula(this->degreeQuadrature_ + 1);
+    const MappingQ<dim> mapping(this->degreeVelocity_,
+                                this->nsparam.femParameters.qmapping_all);
+    FEValues<dim>       fe_values(mapping,
+                                  this->fe,
+                                  quadrature_formula,
+                                  update_values | update_gradients |
+                                  update_quadrature_points | update_JxW_values);
+
+    const FEValuesExtractors::Vector velocities(0);
+    const FEValuesExtractors::Scalar pressure(dim);
+
+    const unsigned int dofs_per_cell =
+            this->fe.dofs_per_cell; // This gives you dofs per cell
+    std::vector<types::global_dof_index> local_dof_indices(
+            dofs_per_cell); //  Local connectivity
+
+    const unsigned int n_q_points = quadrature_formula.size();
+
+    std::vector<Vector<double>> q_exactSol(n_q_points, Vector<double>(dim + 1));
+
+    std::vector<Tensor<1, dim>> local_velocity_values(n_q_points);
+    std::vector<double>         local_pressure_values(n_q_points);
+
+    Function<dim> *l_exact_solution = this->exact_solution;
+
+    Point<dim> center_immersed;
+    MappingQ1<dim> immersed_map;
+    std::map< types::global_dof_index, Point< dim >>  	support_points;
+    DoFTools::map_dofs_to_support_points(immersed_map,this->dof_handler,support_points);
+
+    double l2errorU = 0.;
+
+    // loop over elements
+    typename DoFHandler<dim>::active_cell_iterator cell = this->dof_handler
+            .begin_active(),
+            endc = this->dof_handler.end();
+    for (; cell != endc; ++cell)
+    {
+        if (cell->is_locally_owned())
+        {
+            cell->get_dof_indices(local_dof_indices);
+            bool check_error=true;
+            for (unsigned int p = 0; p < particules.size(); ++p) {
+                unsigned int count_small = 0;
+                if (dim == 2) {
+                    center_immersed(0) = particules[p][0];
+                    center_immersed(1) = particules[p][1];
+
+                } else if (dim == 3) {
+                    center_immersed(0) = particules[p][0];
+                    center_immersed(1) = particules[p][1];
+                    center_immersed(2) = particules[p][2];
+
+                }
+                for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
+                    //count the number of dof that ar smaller or larger then the radius of the particules
+                    //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
+                    if ((support_points[local_dof_indices[j]] - center_immersed).norm() <=particules[p][particules[p].size() - 1] ) {
+                        ++count_small;
+                    }
+                }
+                if(count_small != 0 and count_small != local_dof_indices.size()){
+                    check_error=false;
+                }
+            }
+
+            if(check_error) {
+
+                fe_values.reinit(cell);
+                fe_values[velocities].get_function_values(this->present_solution,
+                                                          local_velocity_values);
+                fe_values[pressure].get_function_values(this->present_solution,
+                                                        local_pressure_values);
+
+                // Retrieve the effective "connectivity matrix" for this element
+                cell->get_dof_indices(local_dof_indices);
+
+                // Get the exact solution at all gauss points
+                l_exact_solution->vector_value_list(fe_values.get_quadrature_points(),
+                                                    q_exactSol);
+
+                for (unsigned int q = 0; q < n_q_points; q++) {
+                    // Find the values of x and u_h (the finite element solution) at
+                    // the quadrature points
+                    double ux_sim = local_velocity_values[q][0];
+                    double ux_exact = q_exactSol[q][0];
+
+                    double uy_sim = local_velocity_values[q][1];
+                    double uy_exact = q_exactSol[q][1];
+
+                    l2errorU +=
+                            (ux_sim - ux_exact) * (ux_sim - ux_exact) * fe_values.JxW(q);
+                    l2errorU +=
+                            (uy_sim - uy_exact) * (uy_sim - uy_exact) * fe_values.JxW(q);
+
+                    if (dim == 3) {
+                        double uz_sim = local_velocity_values[q][2];
+                        double uz_exact = q_exactSol[q][2];
+                        l2errorU += (uz_sim - uz_exact) * (uz_sim - uz_exact) *
+                                    fe_values.JxW(q);
+                    }
+                }
+            }
+        }
+    }
+    l2errorU = Utilities::MPI::sum(l2errorU, this->mpi_communicator);
+    return std::sqrt(l2errorU);
+
+}
+
+template <int dim>
 void GLSNavierStokesSharpSolver<dim>::refine_ib() {
     Point<dim> center_immersed;
     MappingQ1<dim> immersed_map;
@@ -2047,6 +2189,7 @@ GLSNavierStokesSharpSolver<dim>::solve()
 //   this->iterate(true);
       this->postprocess(false);
       this->finish_time_step();
+      finish_time_step_particules();
       force_on_ib();
       integrate_particules();
 
@@ -2054,6 +2197,7 @@ GLSNavierStokesSharpSolver<dim>::solve()
     }
     //force_on_ib();
   this->finish_simulation();
+
 }
 
 

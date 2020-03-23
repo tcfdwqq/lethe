@@ -78,6 +78,11 @@ private:
   void
   integrate_particules();
 
+  double
+  calculate_L2_error_particules();
+  void
+  finish_time_step_particules();
+
   void
   clear_pressure();
 
