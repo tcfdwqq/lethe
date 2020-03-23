@@ -541,7 +541,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
     //define cell iterator
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
-    std::vector<int> dof_proc;
+    std::vector<unsigned int> dof_proc;
     dof_proc.resize(this->dof_handler.n_dofs(),100);
     for (const auto &cell : cell_iterator) {
         if (cell->is_locally_owned() ){
@@ -673,8 +673,14 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             //loops on the dof that are for vx or vy separatly
 
                             for (unsigned int l = k; l < local_dof_indices.size(); l += dim + 1) {
-
-                                if (dof_done(local_dof_indices[l])==0) {
+                                if (l>=local_dof_indices.size()-(dim+1) & this->nsparam.femParameters.pressureOrder>1){
+                                    unsigned int global_index_overrigth = local_dof_indices[l];
+                                    this->system_matrix.set(global_index_overrigth,global_index_overrigth,sum_line);
+                                    for(unsigned int i=k; i<local_dof_indices.size()-(dim+1-k); i+=(dim+1))
+                                        this->system_matrix.set(global_index_overrigth,local_dof_indices[i],-sum_line/(local_dof_indices.size()/(dim+1)-1));
+                                    this->system_rhs(global_index_overrigth)=0;
+                                }
+                                else if (dof_done(local_dof_indices[l])==0) {
                                     dof_done(local_dof_indices[l]) += 1;
                                     // define which dof is going to be redefine
                                     unsigned int global_index_overrigth = local_dof_indices[l];
@@ -698,9 +704,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     //define the vertex associated with the dof
                                     unsigned int cell_found = 0;
                                     bool break_bool = false;
-                                    unsigned int vertex_per_cell=GeometryInfo<dim>::vertices_per_cell;
+                                    unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
                                     for (unsigned int vi = 0; vi < vertex_per_cell; ++vi) {
-                                        unsigned int v = floor(l / (dim + 1));
                                         unsigned int v_index = cell->vertex_index(vi);
 
                                         //get a cell iterator for all the cell neighbors of that vertex
@@ -721,11 +726,11 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                         p_cell_2);
 
                                                 //define the cell and check if the point is inside of the cell
-                                                if (dist_2 == 0) {
+                                                if (dist_2 == 0 & dist_3 == 0) {
                                                     //if the point is in this cell then the dist is equal to 0 and we have found our cell
                                                     cell_found = cell_index;
                                                     break_bool = true;
-                                                    active_neighbors=active_neighbors_set;
+                                                    active_neighbors = active_neighbors_set;
                                                     break;
                                                 }
                                             }
@@ -738,15 +743,13 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     auto &cell_2 = active_neighbors[cell_found];
                                     if (break_bool == false) {
                                         std::cout << "cell not found around point " << std::endl;
-                                        std::cout << "cell index "<< cell_found  << std::endl;
-                                        cell_2 = GridTools::find_active_cell_around_point(this->dof_handler, second_point);
+                                        std::cout << "cell index " << cell_found << std::endl;
+                                        cell_2 = GridTools::find_active_cell_around_point(this->dof_handler,
+                                                                                          second_point);
                                         cell_2->get_dof_indices(local_dof_indices_2);
-                                        std::cout << "point cell 1  "<< support_points[local_dof_indices_2[0]]  << std::endl;
-                                        std::cout << "point cell 2  "<< support_points[local_dof_indices_2[3]]  << std::endl;
-                                        std::cout << "point cell 3  "<< support_points[local_dof_indices_2[6]]  << std::endl;
-                                        std::cout << "point cell 4 "<< support_points[local_dof_indices_2[9]]  << std::endl;
-                                        std::cout << "point  "<< support_points[global_index_overrigth]  << std::endl;
-                                        std::cout << "second point  "<< second_point  << std::endl;
+                                        std::cout << "dof point  " << support_points[global_index_overrigth]
+                                                  << std::endl;
+                                        std::cout << "second point  " << second_point << std::endl;
                                     }
                                     //we have or next cell need to complet the stencil and we define stuff around it
 
@@ -754,20 +757,26 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     //define the unit cell point for the 3rd point of our stencil for a interpolation
                                     Point<dim> second_point_v = immersed_map.transform_real_to_unit_cell(cell_2,
                                                                                                          second_point);
-
                                     Point<dim> third_point_v = immersed_map.transform_real_to_unit_cell(
                                             cell_2,
                                             third_point);
                                     cell_2->get_dof_indices(local_dof_indices_2);
 
                                     //clear the current line of this dof  by looping on the neighbors cell of this dof and clear all the associated dof
-                                    for (unsigned int m = 0; m < active_neighbors.size(); m++) {
-                                        const auto &cell_3 = active_neighbors[m];
-                                        cell_3->get_dof_indices(local_dof_indices_3);
-                                        for (unsigned int o = 0; o < local_dof_indices_3.size(); ++o) {
-                                            this->system_matrix.set(global_index_overrigth, local_dof_indices_3[o], 0);
+                                    for (unsigned int vi = 0; vi < vertex_per_cell; ++vi) {
+                                        unsigned int v_index = cell->vertex_index(vi);
+                                        active_neighbors_set = this->vertices_to_cell[v_index];
+                                        for (unsigned int m = 0; m < active_neighbors_set.size(); m++) {
+                                            const auto &cell_3 = active_neighbors_set[m];
+                                            cell_3->get_dof_indices(local_dof_indices_3);
+                                            for (unsigned int o = 0; o < local_dof_indices_3.size(); ++o) {
+                                                this->system_matrix.set(global_index_overrigth, local_dof_indices_3[o],
+                                                                        0);
+                                            }
                                         }
                                     }
+
+                                    this->system_matrix.clear_row(global_index_overrigth);
                                     double local_interp_sol=0;
                                     double local_interp_sol_2=0;
                                     //define the new matrix entry for this dof
@@ -866,6 +875,15 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
                                 }
                             }
+                        }
+
+                        if (k==dim & this->nsparam.femParameters.pressureOrder>1){
+                            unsigned int l=local_dof_indices.size()-1;
+                            unsigned int global_index_overrigth = local_dof_indices[l];
+                            this->system_matrix.set(global_index_overrigth,global_index_overrigth,sum_line);
+                            this->system_matrix.set(global_index_overrigth,local_dof_indices[dim],-sum_line);
+                            this->system_rhs(global_index_overrigth)=0;
+
                         }
                     }
                 }
