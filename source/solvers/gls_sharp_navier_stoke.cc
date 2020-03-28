@@ -194,10 +194,16 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                     cell_2->get_dof_indices(local_dof_indices);
                     double u_2 = 0;
                     double v_2 = 0;
-                    for (unsigned int j = 0; j < this->fe.dofs_per_cell; j = j + (dim+1)) {
+                    unsigned  int j=0;
+                    while(j < this->fe.dofs_per_cell){
                         u_2 += this->fe.shape_value(j, second_point_v) * this->present_solution(local_dof_indices[j]);
                         v_2 += this->fe.shape_value(j + 1, second_point_v) *
                                this->present_solution(local_dof_indices[j + 1]);
+                        if (j < (dim + 1) *pow(1+this->nsparam.femParameters.pressureOrder,dim)) {
+                            j = j + dim + 1;
+                        } else {
+                            j = j + dim;
+                        }
                     }
                     double U2 =
                             u_2 * cos(i * 2 * PI / (nb_evaluation) - PI / 2) +
@@ -252,12 +258,18 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                     double P_1 = 0;
                     double P_2 = 0;
                     double P_3 = 0;
-                    for (unsigned int j = 2; j < this->fe.dofs_per_cell; j = j +(dim+1)) {
+                    unsigned int j=dim;
+                    while(j<(dim + 1) *pow(1+this->nsparam.femParameters.pressureOrder,dim)){
                         P_1 += this->fe.shape_value(j, second_point_v) * this->present_solution(local_dof_indices[j]);
                         P_2 += this->fe.shape_value(j, second_point_v_2) *
                                this->present_solution(local_dof_indices_2[j]);
                         P_3 += this->fe.shape_value(j, second_point_v_3) *
                                this->present_solution(local_dof_indices_3[j]);
+                        if (j < (dim + 1) *pow(1+this->nsparam.femParameters.pressureOrder,dim)) {
+                            j = j + dim + 1;
+                        } else {
+                            j = j + dim;
+                        }
                     }
                     double P2_temp = P_1 + (P_1 - P_2) + ((P_1 - P_2) - (P_2 - P_3));
                     double P2 = P2_temp;//+(P2_temp-P_1)+((P2_temp-P_1)-(P_1-P_2));
@@ -328,14 +340,14 @@ void GLSNavierStokesSharpSolver<dim>::integrate_particules() {
             this->simulationControl.getParameters();
     // simple explicite euler ofr displacement
 
-    unsigned int nb_skip=this->nsparam.particulesParameters.int_p_per_nb_iter;
+
     //if (iter_ib % nb_skip==0 & iter_ib!=0) {
         if (dim == 2) {
             for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
 
                 //x y
-                particules[i][0] = particules[i][0] + particules[i][2] * timeParameters.dt*nb_skip;
-                particules[i][1] = particules[i][1] + particules[i][3] * timeParameters.dt*nb_skip;
+                particules[i][0] = particules[i][0] + particules[i][2] * timeParameters.dt;
+                particules[i][1] = particules[i][1] + particules[i][3] * timeParameters.dt;
 
             }
         }
@@ -344,9 +356,9 @@ void GLSNavierStokesSharpSolver<dim>::integrate_particules() {
             for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
 
                 //x y
-                particules[i][0] = particules[i][0] + particules[i][3] * timeParameters.dt*nb_skip;
-                particules[i][1] = particules[i][1] + particules[i][4] * timeParameters.dt*nb_skip;
-                particules[i][2] = particules[i][2] + particules[i][5] * timeParameters.dt*nb_skip;
+                particules[i][0] = particules[i][0] + particules[i][3] * timeParameters.dt;
+                particules[i][1] = particules[i][1] + particules[i][4] * timeParameters.dt;
+                particules[i][2] = particules[i][2] + particules[i][5] * timeParameters.dt;
 
 
             }
@@ -565,6 +577,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     QGauss<dim> q_formula(this->degreeQuadrature_);
     FEValues<dim> fe_values(this->fe, q_formula,update_quadrature_points|update_JxW_values);
     const unsigned int dofs_per_cell = this->fe.dofs_per_cell;
+    unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
 
     unsigned int nb_skip=this->nsparam.particulesParameters.int_p_per_nb_iter;
     unsigned int n_q_points  = q_formula.size();
@@ -582,10 +595,9 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     for (const auto &cell : cell_iterator) {
         if (cell->is_locally_owned() ){
             cell->get_dof_indices(local_dof_indices);
-            for (unsigned int k = 0; k < dim ; ++k) {
-                for (unsigned int l = k; l < local_dof_indices.size(); l += dim + 1) {
+            for (unsigned int l = 0; l < local_dof_indices.size(); ++l  ) {
                     dof_proc[local_dof_indices[l]] =  Utilities::MPI::this_mpi_process(this->mpi_communicator);
-                }
+
             }
         }
     }
@@ -673,11 +685,13 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                         }
 
                         if (cell_found) {
+                            //std::cout << "pressure cell found dof index " << local_dof_indices[dim]<< std::endl;
                             unsigned int inside_index = local_dof_indices[dim];
                             //loop over all the pressure point in the cell and impose the pressure on one dof inside to be equal to the pressure of one dof outside
                             for (unsigned int m = 0; m < this->dof_handler.n_dofs(); m++) {
                                 this->system_matrix.set(inside_index, m, 0);
                             }
+
                             system_matrix.set(inside_index, local_dof_indices[dim], sum_line);
 
                             if (initial_step)
@@ -701,8 +715,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             //we are working on the velocity of th
                             //loops on the dof that are for vx or vy separatly
                             //unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
-                            for (unsigned int l = k; l < local_dof_indices.size(); l += dim + 1) {
-
+                            unsigned int l = k;
+                            while (l < local_dof_indices.size()) {
 
                                 if (dof_done(local_dof_indices[l])==0) {
                                     dof_done(local_dof_indices[l]) += 1;
@@ -830,8 +844,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     //define the new matrix entry for this dof
                                     if (true) {
                                         // first the dof itself
-
-                                        for (unsigned int n = k; n < local_dof_indices.size(); n += dim + 1) {
+                                        unsigned int n=k;
+                                        while (n < local_dof_indices.size()) {
                                             // first the dof itself
                                             if (global_index_overrigth == local_dof_indices_2[n]) {
 
@@ -879,6 +893,12 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                     local_interp_sol_3 +=1 * this->fe.shape_value(n, fourth_point_v) * sum_line *active_solution[local_dof_indices_2[n]];
                                                     local_interp_sol_4 +=1 * this->fe.shape_value(n, fifth_point_v) * sum_line *active_solution[local_dof_indices_2[n]];
                                                 }
+                                            }
+
+                                            if (n < (dim + 1) *pow(1+this->nsparam.femParameters.pressureOrder,dim)) {
+                                                n = n + dim + 1;
+                                            } else {
+                                                n = n + dim;
                                             }
                                         }
                                     }
@@ -951,12 +971,19 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     }
 
                                 }
+
+                                if (l < (dim + 1) *pow(1+this->nsparam.femParameters.pressureOrder,dim)) {
+                                    l = l + dim + 1;
+                                } else {
+                                    l = l + dim;
+                                }
                             }
                         }
 
                         if (k==dim & this->nsparam.femParameters.pressureOrder>1){
                             unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
-                            for (unsigned int l = k; l < local_dof_indices.size(); l += dim + 1) {
+                            unsigned int l=k;
+                            while (l < local_dof_indices.size()) {
                                 bool pressure_impose= true;
                                 for (unsigned int vi = 0; vi < vertex_per_cell; ++vi) {
                                     unsigned int v_index = cell->vertex_index(vi);
@@ -975,6 +1002,11 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     unsigned int global_index_overrigth = local_dof_indices[l];
                                     this->system_matrix.set(global_index_overrigth,global_index_overrigth,sum_line);
                                     this->system_rhs(global_index_overrigth)=0;
+                                }
+                                if (l < (dim + 1) *pow(1+this->nsparam.femParameters.pressureOrder,dim)) {
+                                    l = l + dim + 1;
+                                } else {
+                                    l = l + dim;
                                 }
                             }
                         }
@@ -1392,7 +1424,8 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                           std::sqrt(std::pow(sdt, 2) + std::pow(2. * u_mag / h, 2) +
                                     9 * std::pow(4 * viscosity_ / (h * h), 2));
 
-
+                if(PSPG==false)
+                    tau=0;
                 // Gather the shape functions, their gradient and their laplacian
                 // for the velocity and the pressure
                 for (unsigned int k = 0; k < dofs_per_cell; ++k) {
@@ -1516,14 +1549,15 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                             local_matrix(i, j) +=
                                         tau * strong_jac * grad_phi_p[i] * fe_values.JxW(q);
 
-
-                            // PSPG TAU term is currently disabled because it does
-                            // not alter the matrix sufficiently
-                             local_matrix(i, j) +=
-                              -tau * tau * tau * 4 / h / h *
-                              (present_velocity_values[q] * phi_u[j]) *
-                              strong_residual * grad_phi_p[i] *
-                              fe_values.JxW(q);
+                            if(PSPG) {
+                                // PSPG TAU term is currently disabled because it does
+                                // not alter the matrix sufficiently
+                                local_matrix(i, j) +=
+                                 -tau * tau * tau * 4 / h / h *
+                                 (present_velocity_values[q] * phi_u[j]) *
+                                 strong_residual * grad_phi_p[i] *
+                                 fe_values.JxW(q);
+                            }
 
                             // Jacobian is currently incomplete
                             if (SUPG) {
@@ -1557,8 +1591,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                 for (unsigned int i = 0; i < dofs_per_cell; ++i) {
                     // Navier-Stokes Residual
                     local_rhs(i) +=
-                            (
-                                    // Momentum
+                            (       // Momentum
                                     -viscosity_ *
                                     scalar_product(present_velocity_gradients[q],
                                                    grad_phi_u[i]) -
@@ -1628,7 +1661,8 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                     }
 
                     // PSPG GLS term
-                    local_rhs(i) +=
+                    if(PSPG)
+                        local_rhs(i) +=
                             -tau * (strong_residual * grad_phi_p[i]) * fe_values.JxW(q);
 
                     // SUPG GLS term
@@ -2293,7 +2327,7 @@ GLSNavierStokesSharpSolver<dim>::solve()
   while (this->simulationControl.integrate())
     {
       printTime(this->pcout, this->simulationControl);
-
+      integrate_particules();
       if (!this->simulationControl.firstIter())
         {
             refine_ib();
@@ -2314,7 +2348,7 @@ GLSNavierStokesSharpSolver<dim>::solve()
       this->finish_time_step();
       force_on_ib();
       finish_time_step_particules();
-      integrate_particules();
+      //integrate_particules();
       iter_ib+=1;
       initial_step_bool=true;
       MPI_Barrier(this->mpi_communicator);
