@@ -168,15 +168,17 @@ private:
   std::shared_ptr<TrilinosWrappers::PreconditionILU> ilu_preconditioner;
   std::shared_ptr<TrilinosWrappers::PreconditionAMG> amg_preconditioner;
   std::vector<std::vector<typename DoFHandler<dim>::active_cell_iterator>> vertices_to_cell;
-  const bool   SUPG        = false;
+  const bool   SUPG        = true;
   const double GLS_u_scale = 1;
   double radius=0.21;
   double radius_2=0.6;
   bool couette= false;
   std::vector<std::vector<double>> particules;
   bool initial_step_bool;
+  unsigned int iter_ib=0;
 
-
+  TableHandler table_f;
+  TableHandler table_t;
 
 
 };

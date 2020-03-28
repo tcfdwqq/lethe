@@ -786,6 +786,10 @@ namespace Parameters {
                               "true",
                               Patterns::Bool(),
                               "Bool if using the mpi pressure inside the particule");
+            prm.declare_entry("nb skip",
+                              "2",
+                              Patterns::Integer(),
+                              "Number of step skip per integration step of the position ");
 
             prm.enter_subsection("x y z vx vy vz omega_x omega_y omega_z radius particule 0");
             {
@@ -852,6 +856,7 @@ namespace Parameters {
             outside_radius = prm.get_double("refine mesh outside radius factor");
             assemble_inside = prm.get_bool("assemble inside");
             pressure_mpi = prm.get_bool("pressure mpi");
+            int_p_per_nb_iter = prm.get_integer("nb skip");
             const std::string op = prm.get("assemble type");
             if (op == "NS")
                 P_assemble = Particule_Assemble_type ::NS;

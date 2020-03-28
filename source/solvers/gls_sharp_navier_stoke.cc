@@ -133,6 +133,9 @@ void GLSNavierStokesSharpSolver<dim>::clear_pressure() {
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
     // cumpute the torque for a couet flow on the immersed boundary
+    Tensor<1, dim, double> force_vect;
+
+
     if (dim==2) {
         for (unsigned int p = 0; p < particules.size(); ++p) {
             using numbers::PI;
@@ -149,7 +152,7 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
             std::vector<types::global_dof_index> local_dof_indices(this->fe.dofs_per_cell);
             std::vector<types::global_dof_index> local_dof_indices_2(this->fe.dofs_per_cell);
             std::vector<types::global_dof_index> local_dof_indices_3(this->fe.dofs_per_cell);
-            unsigned int nb_evaluation = 100;
+            unsigned int nb_evaluation = 360;
             double t_torque = 0;
 
             double fx_v = 0;
@@ -191,7 +194,7 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                     cell_2->get_dof_indices(local_dof_indices);
                     double u_2 = 0;
                     double v_2 = 0;
-                    for (unsigned int j = 0; j < 12; j = j + 3) {
+                    for (unsigned int j = 0; j < this->fe.dofs_per_cell; j = j + (dim+1)) {
                         u_2 += this->fe.shape_value(j, second_point_v) * this->present_solution(local_dof_indices[j]);
                         v_2 += this->fe.shape_value(j + 1, second_point_v) *
                                this->present_solution(local_dof_indices[j + 1]);
@@ -249,7 +252,7 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                     double P_1 = 0;
                     double P_2 = 0;
                     double P_3 = 0;
-                    for (unsigned int j = 2; j < 12; j = j + 3) {
+                    for (unsigned int j = 2; j < this->fe.dofs_per_cell; j = j +(dim+1)) {
                         P_1 += this->fe.shape_value(j, second_point_v) * this->present_solution(local_dof_indices[j]);
                         P_2 += this->fe.shape_value(j, second_point_v_2) *
                                this->present_solution(local_dof_indices_2[j]);
@@ -286,38 +289,69 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
             std::cout << "ordre 2 fy_P: " << fy_p_2_ << std::endl;
             std::cout << "fx_v: " << fx_v_ << std::endl;
             std::cout << "fy_v: " << fy_v_ << std::endl;
+            force_vect[0]=fx_p_2_+fx_v_;
+            force_vect[1]=fy_p_2_+fy_v_;
+            if (this->nsparam.forcesParameters.verbosity == Parameters::Verbosity::verbose &&
+                    this->this_mpi_process == 0)
+            {
+                table_f.add_value("particule ID", p);
+                table_f.add_value("f_x", fx_p_2_+fx_v_);
+                table_f.add_value("f_y", fy_p_2_+fy_v_);
+                table_f.set_precision("f_x",
+                                            this->nsparam.forcesParameters.display_precision);
+                table_f.set_precision("f_y",
+                                            this->nsparam.forcesParameters.display_precision);
+                if (dim == 3)
+                {
+                    table_f.add_value("f_z", fy_p_2_+fy_v_);
+                    table_f.set_precision("f_z",
+                                                this->nsparam.forcesParameters.display_precision);
+                        }
+                std::cout << "+------------------------------------------+" << std::endl;
+                std::cout << "|  Force  summary                          |" << std::endl;
+                std::cout << "+------------------------------------------+" << std::endl;
+
+
             }
 
+            }
         }
+
+        table_f.write_text(std::cout);
     }
 }
+
 
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::integrate_particules() {
     Parameters::SimulationControl timeParameters =
             this->simulationControl.getParameters();
     // simple explicite euler ofr displacement
-    if (dim ==2) {
-        for (unsigned int i=0 ; i< this->nsparam.particulesParameters.nb;++i) {
 
-            //x y
-            particules[i][0] = particules[i][0]+particules[i][2]*timeParameters.dt;
-            particules[i][1] = particules[i][1]+particules[i][3]*timeParameters.dt;
+    unsigned int nb_skip=this->nsparam.particulesParameters.int_p_per_nb_iter;
+    //if (iter_ib % nb_skip==0 & iter_ib!=0) {
+        if (dim == 2) {
+            for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
 
+                //x y
+                particules[i][0] = particules[i][0] + particules[i][2] * timeParameters.dt*nb_skip;
+                particules[i][1] = particules[i][1] + particules[i][3] * timeParameters.dt*nb_skip;
+
+            }
         }
-    }
 
-    if (dim ==3) {
-        for (unsigned int i=0 ; i< this->nsparam.particulesParameters.nb;++i) {
+        if (dim == 3) {
+            for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
 
-            //x y
-            particules[i][0] = particules[i][0]+particules[i][3]*timeParameters.dt;
-            particules[i][1] = particules[i][1]+particules[i][4]*timeParameters.dt;
-            particules[i][2] = particules[i][2]+particules[i][5]*timeParameters.dt;
+                //x y
+                particules[i][0] = particules[i][0] + particules[i][3] * timeParameters.dt*nb_skip;
+                particules[i][1] = particules[i][1] + particules[i][4] * timeParameters.dt*nb_skip;
+                particules[i][2] = particules[i][2] + particules[i][5] * timeParameters.dt*nb_skip;
 
 
+            }
         }
-    }
+    //}
 
 
 
@@ -532,7 +566,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     FEValues<dim> fe_values(this->fe, q_formula,update_quadrature_points|update_JxW_values);
     const unsigned int dofs_per_cell = this->fe.dofs_per_cell;
 
-
+    unsigned int nb_skip=this->nsparam.particulesParameters.int_p_per_nb_iter;
     unsigned int n_q_points  = q_formula.size();
     // define multiple local_dof_indices one for the cell iterator one for the cell with the second point for
     // the sharp edge stancil and one for manipulation on the neighbors cell.
@@ -668,24 +702,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             //loops on the dof that are for vx or vy separatly
                             //unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
                             for (unsigned int l = k; l < local_dof_indices.size(); l += dim + 1) {
-                                /*bool pressure_impose= true;
-                                for (unsigned int vi = 0; vi < vertex_per_cell; ++vi) {
-                                    unsigned int v_index = cell->vertex_index(vi);
-                                    active_neighbors_set = this->vertices_to_cell[v_index];
-                                    for (unsigned int m = 0; m < active_neighbors_set.size(); m++) {
-                                        const auto &cell_3 = active_neighbors_set[m];
-                                        cell_3->get_dof_indices(local_dof_indices_3);
-                                        for (unsigned int o = 0; o < local_dof_indices_3.size(); ++o) {
-                                            if (system_matrix.el(local_dof_indices[l],local_dof_indices_3[o])!=0 | this->system_rhs(local_dof_indices[l])!=0)
-                                                pressure_impose= false;
-                                        }
-                                    }
-                                }
-                                if (pressure_impose){
-                                    unsigned int global_index_overrigth = local_dof_indices[l];
-                                    this->system_matrix.set(global_index_overrigth,global_index_overrigth,sum_line);
-                                    this->system_rhs(global_index_overrigth)=0;
-                                }*/
+
 
                                 if (dof_done(local_dof_indices[l])==0) {
                                     dof_done(local_dof_indices[l]) += 1;
@@ -704,28 +721,28 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
                                     //define the other point for or 3 point stencil ( IB point, original dof and this point)
                                     const Point<dim, double> second_point(
-                                            support_points[local_dof_indices[l]] + vect_dist / 8);
+                                            support_points[local_dof_indices[l]] + vect_dist / 4);
                                     const Point<dim, double> third_point(
-                                            support_points[local_dof_indices[l]] + vect_dist / 16);
+                                            support_points[local_dof_indices[l]] + vect_dist / 8);
 
                                     const Point<dim, double> fourth_point(
-                                            support_points[local_dof_indices[l]] + vect_dist * 3/ 32);
+                                            support_points[local_dof_indices[l]] + vect_dist * 3/ 16);
 
                                     const Point<dim, double> fifth_point(
-                                            support_points[local_dof_indices[l]] + vect_dist / 32);
+                                            support_points[local_dof_indices[l]] + vect_dist / 16);
 
-                                    double dof_2=9;
-                                    double sp_2=-8;
+                                    double dof_2=5;
+                                    double sp_2=-4;
 
-                                    double dof_3=153;
-                                    double sp_3=136;
-                                    double tp_3=-288;
+                                    double dof_3=45;
+                                    double sp_3=36;
+                                    double tp_3=-80;
 
-                                    double dof_5=58905;
-                                    double fp2_5=-228480;
-                                    double tp_5=332640;
-                                    double fp1_5=-215424;
-                                    double sp_5=52360;
+                                    double dof_5=4845;
+                                    double fp2_5=-18240;
+                                    double tp_5=25840;
+                                    double fp1_5=-16320;
+                                    double sp_5=3876;
 
 
 
@@ -1157,49 +1174,48 @@ template <int dim>
 template <bool                                              assemble_matrix,
         Parameters::SimulationControl::TimeSteppingMethod scheme>
 void
-GLSNavierStokesSharpSolver<dim>::assembleGLS()
-{
+GLSNavierStokesSharpSolver<dim>::assembleGLS() {
     //std::cout << "this MPI porcess start matrix assemble : "<< this->this_mpi_process<< std::endl;
     MPI_Barrier(this->mpi_communicator);
     if (assemble_matrix)
         system_matrix = 0;
     this->system_rhs = 0;
 
-    double         viscosity_ = this->nsparam.physicalProperties.viscosity;
-    Function<dim> *l_forcing_function = this->forcing_function;
+    double viscosity_ = this->nsparam.physicalProperties.viscosity;
+    Function <dim> *l_forcing_function = this->forcing_function;
 
-    QGauss<dim>                      quadrature_formula(this->degreeQuadrature_);
-    const MappingQ<dim>              mapping(this->degreeVelocity_,
-                                             this->nsparam.femParameters.qmapping_all);
-    FEValues<dim>                    fe_values(mapping,
-                                               this->fe,
-                                               quadrature_formula,
-                                               update_values | update_quadrature_points |
-                                               update_JxW_values | update_gradients |
-                                               update_hessians);
-    const unsigned int               dofs_per_cell = this->fe.dofs_per_cell;
-    const unsigned int               n_q_points    = quadrature_formula.size();
+    QGauss <dim> quadrature_formula(this->degreeQuadrature_);
+    const MappingQ <dim> mapping(this->degreeVelocity_,
+                                 this->nsparam.femParameters.qmapping_all);
+    FEValues <dim> fe_values(mapping,
+                             this->fe,
+                             quadrature_formula,
+                             update_values | update_quadrature_points |
+                             update_JxW_values | update_gradients |
+                             update_hessians);
+    const unsigned int dofs_per_cell = this->fe.dofs_per_cell;
+    const unsigned int n_q_points = quadrature_formula.size();
     const FEValuesExtractors::Vector velocities(0);
     const FEValuesExtractors::Scalar pressure(dim);
-    FullMatrix<double>               local_matrix(dofs_per_cell, dofs_per_cell);
-    Vector<double>                   local_rhs(dofs_per_cell);
+    FullMatrix<double> local_matrix(dofs_per_cell, dofs_per_cell);
+    Vector<double> local_rhs(dofs_per_cell);
     std::vector<Vector<double>> rhs_force(n_q_points, Vector<double>(dim + 1));
     std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
-    std::vector<Tensor<1, dim>>          present_velocity_values(n_q_points);
-    std::vector<Tensor<2, dim>>          present_velocity_gradients(n_q_points);
-    std::vector<double>                  present_pressure_values(n_q_points);
-    std::vector<Tensor<1, dim>>          present_pressure_gradients(n_q_points);
-    std::vector<Tensor<1, dim>>          present_velocity_laplacians(n_q_points);
-    std::vector<Tensor<2, dim>>          present_velocity_hess(n_q_points);
+    std::vector<Tensor<1, dim>> present_velocity_values(n_q_points);
+    std::vector<Tensor<2, dim>> present_velocity_gradients(n_q_points);
+    std::vector<double> present_pressure_values(n_q_points);
+    std::vector<Tensor<1, dim>> present_pressure_gradients(n_q_points);
+    std::vector<Tensor<1, dim>> present_velocity_laplacians(n_q_points);
+    std::vector<Tensor<2, dim>> present_velocity_hess(n_q_points);
 
     Tensor<1, dim> force;
 
-    std::vector<double>         div_phi_u(dofs_per_cell);
+    std::vector<double> div_phi_u(dofs_per_cell);
     std::vector<Tensor<1, dim>> phi_u(dofs_per_cell);
     std::vector<Tensor<3, dim>> hess_phi_u(dofs_per_cell);
     std::vector<Tensor<1, dim>> laplacian_phi_u(dofs_per_cell);
     std::vector<Tensor<2, dim>> grad_phi_u(dofs_per_cell);
-    std::vector<double>         phi_p(dofs_per_cell);
+    std::vector<double> phi_p(dofs_per_cell);
     std::vector<Tensor<1, dim>> grad_phi_p(dofs_per_cell);
 
     // Values at previous time step for transient schemes
@@ -1209,16 +1225,20 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
 
 
     // support point
-    MappingQ1<dim> immersed_map;
-    std::map< types::global_dof_index, Point< dim >>  	support_points;
-    DoFTools::map_dofs_to_support_points(immersed_map,this->dof_handler,support_points);
+    MappingQ1 <dim> immersed_map;
+    std::map<types::global_dof_index, Point<dim >> support_points;
+    DoFTools::map_dofs_to_support_points(immersed_map, this->dof_handler, support_points);
 
     Point<dim> center_immersed;
 
 
     // Time steps and inverse time steps which is used for numerous calculations
-    const double dt  = this->simulationControl.getTimeSteps()[0];
-    const double sdt = 1. / dt;
+    double dt = this->simulationControl.getTimeSteps()[0];
+    double sdt = 1. / dt;
+    /*if (iter_ib % 2 == 0 & iter_ib != 0) {
+        dt = dt / 100;
+        sdt = 1. / dt;
+    }*/
 
     // Vector for the BDF coefficients
     // The coefficients are stored in the following fashion :
@@ -1226,7 +1246,9 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
     // 1 - n
     // 2 - n-1
     // 3 - n-2
+
     Vector<double> bdf_coefs;
+
     if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf1)
         bdf_coefs = bdf_coefficients(1, this->simulationControl.getTimeSteps());
 
@@ -1236,6 +1258,11 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
     if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf3)
         bdf_coefs = bdf_coefficients(3, this->simulationControl.getTimeSteps());
 
+    /*if (iter_ib % 2 == 0 & iter_ib != 0) {
+        for (unsigned int i = 0; i < bdf_coefs.size(); ++i) {
+            bdf_coefs[i] = bdf_coefs[i] * 0.01;
+        }
+    }*/
     // Matrix of coefficients for the SDIRK methods
     // The lines store the information required for each step
     // Column 0 always refer to outcome of the step that is being calculated
@@ -1365,6 +1392,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
                           std::sqrt(std::pow(sdt, 2) + std::pow(2. * u_mag / h, 2) +
                                     9 * std::pow(4 * viscosity_ / (h * h), 2));
 
+
                 // Gather the shape functions, their gradient and their laplacian
                 // for the velocity and the pressure
                 for (unsigned int k = 0; k < dofs_per_cell; ++k) {
@@ -1491,11 +1519,11 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
 
                             // PSPG TAU term is currently disabled because it does
                             // not alter the matrix sufficiently
-                            // local_matrix(i, j) +=
-                            //  -tau * tau * tau * 4 / h / h *
-                            //  (present_velocity_values[q] * phi_u[j]) *
-                            //  strong_residual * grad_phi_p[i] *
-                            //  fe_values.JxW(q);
+                             local_matrix(i, j) +=
+                              -tau * tau * tau * 4 / h / h *
+                              (present_velocity_values[q] * phi_u[j]) *
+                              strong_residual * grad_phi_p[i] *
+                              fe_values.JxW(q);
 
                             // Jacobian is currently incomplete
                             if (SUPG) {
@@ -1508,18 +1536,18 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
 
                                 // SUPG TAU term is currently disabled because it
                                 // does not alter the matrix sufficiently
-                                // local_matrix(i, j)
-                                // +=
-                                //   -strong_residual
-                                //   * (grad_phi_u[i]
-                                //   *
-                                //   present_velocity_values[q])
-                                //   * tau * tau *
-                                //   tau * 4 / h / h
-                                //   *
-                                //   (present_velocity_values[q]
-                                //   * phi_u[j]) *
-                                //   fe_values.JxW(q);
+                                 local_matrix(i, j)
+                                 +=
+                                   -strong_residual
+                                   * (grad_phi_u[i]
+                                   *
+                                   present_velocity_values[q])
+                                   * tau * tau *
+                                   tau * 4 / h / h
+                                   *
+                                   (present_velocity_values[q]
+                                   * phi_u[j]) *
+                                   fe_values.JxW(q);
                             }
                         }
                     }
@@ -1672,6 +1700,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS()
             }
         }
     //std::cout << "this MPI porcess finish matrix assemble and start compress : "<< this->this_mpi_process<< std::endl;
+
     if (assemble_matrix)
         system_matrix.compress(VectorOperation::add);
     this->system_rhs.compress(VectorOperation::add);
@@ -2271,23 +2300,24 @@ GLSNavierStokesSharpSolver<dim>::solve()
             NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
             refine_mesh();
 
-            if (this->simulationControl.getParameters().method == Parameters::SimulationControl::TimeSteppingMethod::steady){
+            /*if (this->simulationControl.getParameters().method == Parameters::SimulationControl::TimeSteppingMethod::steady){
                 this->set_initial_condition(this->nsparam.initialCondition->type,
                                             this->nsparam.restartParameters.restart);
 
 
-            }
+            }*/
         }
 
       this->iterate(this->simulationControl.firstIter());
 //   this->iterate(true);
       this->postprocess(false);
       this->finish_time_step();
-      finish_time_step_particules();
       force_on_ib();
+      finish_time_step_particules();
       integrate_particules();
-
+      iter_ib+=1;
       initial_step_bool=true;
+      MPI_Barrier(this->mpi_communicator);
     }
     //force_on_ib();
   this->finish_simulation();
