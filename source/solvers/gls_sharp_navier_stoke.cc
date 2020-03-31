@@ -734,31 +734,77 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
 
                                     //define the other point for or 3 point stencil ( IB point, original dof and this point)
-                                    const Point<dim, double> second_point(
-                                            support_points[local_dof_indices[l]] + vect_dist / 4);
-                                    const Point<dim, double> third_point(
-                                            support_points[local_dof_indices[l]] + vect_dist / 8);
+                                    unsigned int length_ratio=8;
 
-                                    const Point<dim, double> fourth_point(
-                                            support_points[local_dof_indices[l]] + vect_dist * 3/ 16);
+                                    double length_fraction = 1./length_ratio;
 
-                                    const Point<dim, double> fifth_point(
-                                            support_points[local_dof_indices[l]] + vect_dist / 16);
+                                    Point<dim, double> second_point(
+                                            support_points[local_dof_indices[l]] + vect_dist*length_fraction );
+                                    Point<dim, double> third_point(
+                                            support_points[local_dof_indices[l]] + vect_dist*length_fraction*1/2);
 
-                                    double dof_2=5;
-                                    double sp_2=-4;
+                                    Point<dim, double> fourth_point(
+                                            support_points[local_dof_indices[l]] + vect_dist *length_fraction*3/4);
 
-                                    double dof_3=45;
-                                    double sp_3=36;
-                                    double tp_3=-80;
+                                    Point<dim, double> fifth_point(
+                                            support_points[local_dof_indices[l]] + vect_dist *length_fraction*1/4);
 
-                                    double dof_5=4845;
-                                    double fp2_5=-18240;
-                                    double tp_5=25840;
-                                    double fp1_5=-16320;
-                                    double sp_5=3876;
+                                    double dof_2;
+                                    double sp_2 ;
 
+                                    double dof_3;
+                                    double sp_3 ;
+                                    double tp_3 ;
 
+                                    double dof_5;
+                                    double fp2_5;
+                                    double tp_5 ;
+                                    double fp1_5 ;
+                                    double sp_5 ;
+
+                                    if (length_ratio == 4) {
+                                        dof_2 = 5;
+                                        sp_2 = -4;
+
+                                        dof_3 = 45;
+                                        sp_3 = 36;
+                                        tp_3 = -80;
+
+                                        dof_5 = 4845;
+                                        fp2_5 = -18240;
+                                        tp_5 = 25840;
+                                        fp1_5 = -16320;
+                                        sp_5 = 3876;
+
+                                    }
+                                    else if(length_ratio == 2){
+                                        dof_2 = 3;
+                                        sp_2 = -2;
+
+                                        dof_3 = 15;
+                                        sp_3 = 10;
+                                        tp_3 = -24;
+
+                                        dof_5 = 495;
+                                        fp2_5 = -1760;
+                                        tp_5 = 2376;
+                                        fp1_5 = -1440;
+                                        sp_5 = 330;
+                                    }
+                                    else if(length_ratio == 8){
+                                        dof_2 = 9;
+                                        sp_2 = -8;
+
+                                        dof_3 = 153;
+                                        sp_3 = 136;
+                                        tp_3 = -288;
+
+                                        dof_5 = 58905;
+                                        fp2_5 = -228480;
+                                        tp_5 = 332640;
+                                        fp1_5 = -215424;
+                                        sp_5 = 52360;
+                                    }
 
 
 
@@ -836,7 +882,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                         }
                                     }
 
-                                    this->system_matrix.clear_row(global_index_overrigth);
+
                                     double local_interp_sol=0;
                                     double local_interp_sol_2=0;
                                     double local_interp_sol_3=0;
