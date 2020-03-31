@@ -16,13 +16,17 @@ public:
         const bool is_initial_step,
         const bool force_matrix_renewal = true) override;
 };
-
+#include <map> // TO DELETE (ONLY TO TEST C++17 COMPILATION)
 template <typename VectorType>
 NewtonNonLinearSolver<VectorType>::NewtonNonLinearSolver(
   PhysicsSolver<VectorType> *        physics_solver,
   const Parameters::NonLinearSolver &params)
   : NonLinearSolver<VectorType>(physics_solver, params)
-{}
+{
+  // TO DELETE (ONLY TO TEST C++17 COMPILATION)
+  std::map<std::string, std::string> myMap;
+  myMap.insert_or_assign("a", "apple");
+}
 
 template <typename VectorType>
 void
