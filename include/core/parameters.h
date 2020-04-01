@@ -442,6 +442,7 @@ namespace Parameters
         unsigned int nb ;
         unsigned int order;
         unsigned int int_p_per_nb_iter;
+        unsigned int initial_refinement;
         double inside_radius;
         double outside_radius;
         bool assemble_inside ;

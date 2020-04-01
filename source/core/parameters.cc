@@ -762,6 +762,10 @@ namespace Parameters {
                               "1",
                               Patterns::Integer(),
                               "Number of particules reprensented by IB max number of particules = 10 ");
+            prm.declare_entry("initial refinement",
+                              "0",
+                              Patterns::Integer(),
+                              "number of refinement around the particules before the start of the simulation ");
             prm.declare_entry("stencil order",
                               "2",
                               Patterns::Integer(),
@@ -852,6 +856,7 @@ namespace Parameters {
         {
             nb = prm.get_integer("number of particules");
             order = prm.get_integer("stencil order");
+            initial_refinement = prm.get_integer("initial refinement");
             inside_radius = prm.get_double("refine mesh inside radius factor");
             outside_radius = prm.get_double("refine mesh outside radius factor");
             assemble_inside = prm.get_bool("assemble inside");

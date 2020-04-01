@@ -588,6 +588,12 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     std::vector<types::global_dof_index> local_dof_indices_3(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_4(dofs_per_cell);
 
+    double dr = (GridTools::minimal_cell_diameter(*this->triangulation) *
+                 GridTools::minimal_cell_diameter(*this->triangulation)) / sqrt(2 *
+                                                                                (GridTools::minimal_cell_diameter(
+                                                                                        *this->triangulation) *
+                                                                                 GridTools::minimal_cell_diameter(
+                                                                                         *this->triangulation)));
     //define cell iterator
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
     std::vector<unsigned int> dof_proc;
@@ -734,7 +740,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
 
                                     //define the other point for or 3 point stencil ( IB point, original dof and this point)
-                                    unsigned int length_ratio=8;
+                                    unsigned int length_ratio=2;
 
                                     double length_fraction = 1./length_ratio;
 
@@ -882,6 +888,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                         }
                                     }
 
+                                    //this->system_matrix.clear_row(global_index_overrigth);
 
                                     double local_interp_sol=0;
                                     double local_interp_sol_2=0;
@@ -891,7 +898,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     if (true) {
                                         // first the dof itself
                                         unsigned int n=k;
-                                        while (n < local_dof_indices.size()) {
+                                        while (n < local_dof_indices_2.size()) {
                                             // first the dof itself
                                             if (global_index_overrigth == local_dof_indices_2[n]) {
 
@@ -948,6 +955,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                             }
                                         }
                                     }
+
 
                                     // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary condition as a dirichlet
                                     if (true) {
@@ -1011,9 +1019,6 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                             if (this->nsparam.particulesParameters.order>3)
                                                 this->system_rhs(global_index_overrigth) =vz*sum_line-active_solution[global_index_overrigth]*sum_line*dof_5-local_interp_sol*sp_5-local_interp_sol_2*tp_5 -local_interp_sol_3*fp1_5-local_interp_sol_4*fp2_5;
                                         }
-                                    }
-                                    else {
-                                        this->system_rhs(global_index_overrigth) = 0;
                                     }
 
                                 }
@@ -2368,6 +2373,12 @@ GLSNavierStokesSharpSolver<dim>::solve()
   this->setup_dofs();
   this->set_initial_condition(this->nsparam.initialCondition->type,
                               this->nsparam.restartParameters.restart);
+  for (unsigned int i= 0; i< this->nsparam.particulesParameters.initial_refinement;++i) {
+      refine_ib();
+      NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
+      refine_mesh();
+  }
+
 
   initial_step_bool=true;
   while (this->simulationControl.integrate())
@@ -2380,12 +2391,6 @@ GLSNavierStokesSharpSolver<dim>::solve()
             NavierStokesBase<dim, TrilinosWrappers::MPI::Vector, IndexSet>::
             refine_mesh();
 
-            /*if (this->simulationControl.getParameters().method == Parameters::SimulationControl::TimeSteppingMethod::steady){
-                this->set_initial_condition(this->nsparam.initialCondition->type,
-                                            this->nsparam.restartParameters.restart);
-
-
-            }*/
         }
 
       this->iterate(this->simulationControl.firstIter());

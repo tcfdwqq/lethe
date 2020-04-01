@@ -956,59 +956,58 @@ NavierStokesBase<dim, VectorType, DofsType>::refine_mesh_kelly()
                               this->nsparam.femParameters.qmapping_all);
   const FEValuesExtractors::Vector velocity(0);
   const FEValuesExtractors::Scalar pressure(dim);
-  if (this->nsparam.meshAdaptation.variable ==
-      Parameters::MeshAdaptation::Variable::pressure)
-    {
-      KellyErrorEstimator<dim>::estimate(
-        mapping,
-        this->dof_handler,
-        QGauss<dim - 1>(this->degreeQuadrature_ + 1),
-        typename std::map<types::boundary_id, const Function<dim, double> *>(),
-        this->present_solution,
-        estimated_error_per_cell,
-        this->fe.component_mask(pressure));
-    }
-  else if (this->nsparam.meshAdaptation.variable ==
-           Parameters::MeshAdaptation::Variable::velocity)
-    {
-      KellyErrorEstimator<dim>::estimate(
-        mapping,
-        this->dof_handler,
-        QGauss<dim - 1>(this->degreeQuadrature_ + 1),
-        typename std::map<types::boundary_id, const Function<dim, double> *>(),
-        this->present_solution,
-        estimated_error_per_cell,
-        this->fe.component_mask(velocity));
-    }
+  if (!this->simulationControl.firstIter()) {
+      if (this->nsparam.meshAdaptation.variable ==
+          Parameters::MeshAdaptation::Variable::pressure) {
+          KellyErrorEstimator<dim>::estimate(
+                  mapping,
+                  this->dof_handler,
+                  QGauss<dim - 1>(this->degreeQuadrature_ + 1),
+                  typename std::map<types::boundary_id, const Function<dim, double> *>(),
+                  this->present_solution,
+                  estimated_error_per_cell,
+                  this->fe.component_mask(pressure));
+      } else if (this->nsparam.meshAdaptation.variable ==
+                 Parameters::MeshAdaptation::Variable::velocity) {
+          KellyErrorEstimator<dim>::estimate(
+                  mapping,
+                  this->dof_handler,
+                  QGauss<dim - 1>(this->degreeQuadrature_ + 1),
+                  typename std::map<types::boundary_id, const Function<dim, double> *>(),
+                  this->present_solution,
+                  estimated_error_per_cell,
+                  this->fe.component_mask(velocity));
+      }
 
-  if (this->nsparam.meshAdaptation.fractionType ==
-      Parameters::MeshAdaptation::FractionType::number)
-    parallel::distributed::GridRefinement::refine_and_coarsen_fixed_number(
-      tria,
-      estimated_error_per_cell,
-      this->nsparam.meshAdaptation.fractionRefinement,
-      this->nsparam.meshAdaptation.fractionCoarsening,
-      this->nsparam.meshAdaptation.maxNbElements);
+      if (this->nsparam.meshAdaptation.fractionType ==
+          Parameters::MeshAdaptation::FractionType::number)
+          parallel::distributed::GridRefinement::refine_and_coarsen_fixed_number(
+                  tria,
+                  estimated_error_per_cell,
+                  this->nsparam.meshAdaptation.fractionRefinement,
+                  this->nsparam.meshAdaptation.fractionCoarsening,
+                  this->nsparam.meshAdaptation.maxNbElements);
 
-  else if (this->nsparam.meshAdaptation.fractionType ==
-           Parameters::MeshAdaptation::FractionType::fraction)
-    parallel::distributed::GridRefinement::refine_and_coarsen_fixed_fraction(
-      tria,
-      estimated_error_per_cell,
-      this->nsparam.meshAdaptation.fractionRefinement,
-      this->nsparam.meshAdaptation.fractionCoarsening);
+      else if (this->nsparam.meshAdaptation.fractionType ==
+               Parameters::MeshAdaptation::FractionType::fraction)
+          parallel::distributed::GridRefinement::refine_and_coarsen_fixed_fraction(
+                  tria,
+                  estimated_error_per_cell,
+                  this->nsparam.meshAdaptation.fractionRefinement,
+                  this->nsparam.meshAdaptation.fractionCoarsening);
 
-  if (tria.n_levels() > this->nsparam.meshAdaptation.maxRefLevel)
-    for (typename Triangulation<dim>::active_cell_iterator cell =
-           tria.begin_active(this->nsparam.meshAdaptation.maxRefLevel);
-         cell != tria.end();
-         ++cell)
-      cell->clear_refine_flag();
-  for (typename Triangulation<dim>::active_cell_iterator cell =
-         tria.begin_active(this->nsparam.meshAdaptation.minRefLevel);
-       cell != tria.end_active(this->nsparam.meshAdaptation.minRefLevel);
-       ++cell)
-    cell->clear_coarsen_flag();
+  }
+      if (tria.n_levels() > this->nsparam.meshAdaptation.maxRefLevel)
+          for (typename Triangulation<dim>::active_cell_iterator cell =
+                  tria.begin_active(this->nsparam.meshAdaptation.maxRefLevel);
+               cell != tria.end();
+               ++cell)
+              cell->clear_refine_flag();
+      for (typename Triangulation<dim>::active_cell_iterator cell =
+              tria.begin_active(this->nsparam.meshAdaptation.minRefLevel);
+           cell != tria.end_active(this->nsparam.meshAdaptation.minRefLevel);
+           ++cell)
+          cell->clear_coarsen_flag();
 
   tria.prepare_coarsening_and_refinement();
 
