@@ -42,6 +42,6 @@ script:
       python contrib/utilities/run-clang-format.py -r source include;
     fi
   - if [ "$STEP" = "compile_and_test" ]; then
-      docker run rrastak/dealii:ubuntu-package /bin/sh -c "apt-get install -y numdiff && git clone https://github.com/$TRAVIS_REPO_SLUG && cd lethe && git checkout $BRANCH && mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Release && make -j2 && ctest -j";
+      docker run rrastak/dealii:ubuntu-package /bin/sh -c "apt-get install -y git && git clone https://github.com/$TRAVIS_REPO_SLUG && cd lethe && git checkout $BRANCH && mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Release && make -j2 && ctest -j";
     fi
  
