@@ -341,7 +341,7 @@ void GLSNavierStokesSharpSolver<dim>::integrate_particules() {
     // simple explicite euler ofr displacement
 
 
-    //if (iter_ib % nb_skip==0 & iter_ib!=0) {
+
         if (dim == 2) {
             for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
 
@@ -363,7 +363,6 @@ void GLSNavierStokesSharpSolver<dim>::integrate_particules() {
 
             }
         }
-    //}
 
 
 
@@ -558,7 +557,7 @@ void GLSNavierStokesSharpSolver<dim>::refine_ib() {
 template <int dim>
 void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     //This function define a immersed boundary base on the sharp edge method on a hyper_shere of dim 2 or 3
-
+    
     //define stuff  in a later version the center of the hyper_sphere would be defined by a particule handler and the boundary condition associeted with it also.
     using numbers::PI;
     Point<dim> center_immersed;
@@ -579,7 +578,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     const unsigned int dofs_per_cell = this->fe.dofs_per_cell;
     unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
 
-    unsigned int nb_skip=this->nsparam.particulesParameters.int_p_per_nb_iter;
+
     unsigned int n_q_points  = q_formula.size();
     // define multiple local_dof_indices one for the cell iterator one for the cell with the second point for
     // the sharp edge stancil and one for manipulation on the neighbors cell.
@@ -588,12 +587,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     std::vector<types::global_dof_index> local_dof_indices_3(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_4(dofs_per_cell);
 
-    double dr = (GridTools::minimal_cell_diameter(*this->triangulation) *
-                 GridTools::minimal_cell_diameter(*this->triangulation)) / sqrt(2 *
-                                                                                (GridTools::minimal_cell_diameter(
-                                                                                        *this->triangulation) *
-                                                                                 GridTools::minimal_cell_diameter(
-                                                                                         *this->triangulation)));
+
     //define cell iterator
     const auto &cell_iterator=this->dof_handler.active_cell_iterators();
     std::vector<unsigned int> dof_proc;
@@ -603,7 +597,6 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
             cell->get_dof_indices(local_dof_indices);
             for (unsigned int l = 0; l < local_dof_indices.size(); ++l  ) {
                     dof_proc[local_dof_indices[l]] =  Utilities::MPI::this_mpi_process(this->mpi_communicator);
-
             }
         }
     }
@@ -713,10 +706,10 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                 //if the cell is cut by the IB the count wont equal 0 or the number of total dof in a cell
 
                 if (count_small != 0 and count_small != local_dof_indices.size()) {
+
                     //if we are here the cell is cut by the immersed boundary
                     //loops on the dof that reprensant the velocity   in x and y and pressure separatly
                     for (unsigned int k = 0; k < dim + 1; ++k) {
-
                         if (k < dim) {
                             //we are working on the velocity of th
                             //loops on the dof that are for vx or vy separatly
@@ -725,7 +718,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             while (l < local_dof_indices.size()) {
 
                                 if (dof_done(local_dof_indices[l])==0) {
-                                    dof_done(local_dof_indices[l]) += 1;
+                                    //dof_done(local_dof_indices[l]) += 1;
                                     // define which dof is going to be redefine
                                     unsigned int global_index_overrigth = local_dof_indices[l];
 
@@ -740,7 +733,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
 
                                     //define the other point for or 3 point stencil ( IB point, original dof and this point)
-                                    unsigned int length_ratio=2;
+                                    unsigned int length_ratio=8;
 
                                     double length_fraction = 1./length_ratio;
 
@@ -819,7 +812,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     //define the vertex associated with the dof
                                     unsigned int cell_found = 0;
                                     bool break_bool = false;
-                                    unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
+                                    //unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
                                     for (unsigned int vi = 0; vi < vertex_per_cell; ++vi) {
                                         unsigned int v_index = cell->vertex_index(vi);
 
@@ -957,6 +950,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     }
 
 
+
                                     // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary condition as a dirichlet
                                     if (true) {
                                         // different boundary condition depending if the odf is vx or vy and if the problem we solve
@@ -1031,7 +1025,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             }
                         }
 
-                        if (k==dim & this->nsparam.femParameters.pressureOrder>1){
+                        if (k==dim ){
                             unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
                             unsigned int l=k;
                             while (l < local_dof_indices.size()) {
@@ -1070,6 +1064,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     system_matrix.compress(VectorOperation::insert);
     this->system_rhs.compress(VectorOperation::insert);
     initial_step_bool=false;
+    // Check if line are equal to zeros
 }
 
 template <int dim>
@@ -1313,15 +1308,12 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
     DoFTools::map_dofs_to_support_points(immersed_map, this->dof_handler, support_points);
 
     Point<dim> center_immersed;
+    Point<dim> pressure_bridge;
 
 
     // Time steps and inverse time steps which is used for numerous calculations
     double dt = this->simulationControl.getTimeSteps()[0];
     double sdt = 1. / dt;
-    /*if (iter_ib % 2 == 0 & iter_ib != 0) {
-        dt = dt / 100;
-        sdt = 1. / dt;
-    }*/
 
     // Vector for the BDF coefficients
     // The coefficients are stored in the following fashion :
@@ -1341,11 +1333,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
     if (scheme == Parameters::SimulationControl::TimeSteppingMethod::bdf3)
         bdf_coefs = bdf_coefficients(3, this->simulationControl.getTimeSteps());
 
-    /*if (iter_ib % 2 == 0 & iter_ib != 0) {
-        for (unsigned int i = 0; i < bdf_coefs.size(); ++i) {
-            bdf_coefs[i] = bdf_coefs[i] * 0.01;
-        }
-    }*/
+
     // Matrix of coefficients for the SDIRK methods
     // The lines store the information required for each step
     // Column 0 always refer to outcome of the step that is being calculated
@@ -1363,6 +1351,8 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
     // Element size
     double h;
 
+
+
     typename DoFHandler<dim>::active_cell_iterator cell = this->dof_handler
             .begin_active(),
             endc = this->dof_handler.end();
@@ -1374,13 +1364,23 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
             cell->get_dof_indices(local_dof_indices);
             for (unsigned int k = 0; k < particules.size(); ++k){
                 unsigned int count_small = 0;
-                if (dim==2) {
-                    center_immersed(0)=particules[k][0];
-                    center_immersed(1)=particules[k][1];}
-                else if (dim==3){
-                    center_immersed(0)=particules[k][0];
-                    center_immersed(1)=particules[k][1];
-                    center_immersed(2)=particules[k][2]; }
+                if (dim == 2) {
+                    center_immersed(0) = particules[k][0];
+                    center_immersed(1) = particules[k][1];
+                    // define arbitrary point on the boundary where the pressure will be link between the 2 domain
+                    pressure_bridge(0) = particules[k][0]-this->nsparam.particulesParameters.pressure_offset[k][0];
+                    pressure_bridge(1) = particules[k][1]-this->nsparam.particulesParameters.pressure_offset[k][1];
+                }
+                else if (dim == 3) {
+                    center_immersed(0) = particules[k][0];
+                    center_immersed(1) = particules[k][1];
+                    center_immersed(2) = particules[k][2];
+                    // define arbitrary point on the boundary where the pressure will be link between the 2 domain
+                    pressure_bridge(0) = particules[k][0]-this->nsparam.particulesParameters.pressure_offset[k][0];
+                    pressure_bridge(1) = particules[k][1]-this->nsparam.particulesParameters.pressure_offset[k][1];
+                    pressure_bridge(2) = particules[k][2]-this->nsparam.particulesParameters.pressure_offset[k][2];
+
+                }
 
                 for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
                     //count the number of dof that are smaller or larger then the radius of the particules
@@ -1403,7 +1403,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                 }
             }
             // assemble the cell only if the cell is not cut by a IB
-
+            //assemble_bool=true;
             if (assemble_bool==true ) {
 
 
@@ -1426,6 +1426,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                     this->evaluation_point, present_velocity_gradients);
             fe_values[velocities].get_function_laplacians(
                     this->evaluation_point, present_velocity_laplacians);
+
 
             // Gather pressure (values, gradient)
             fe_values[pressure].get_function_values(this->evaluation_point,
@@ -1780,10 +1781,11 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
 
                 }
             else{
+                // could assemble someting in the cells tahat are cut  have to code it here
 
             }
-            }
         }
+    }
     //std::cout << "this MPI porcess finish matrix assemble and start compress : "<< this->this_mpi_process<< std::endl;
 
     if (assemble_matrix)
