@@ -14,7 +14,7 @@
  * ---------------------------------------------------------------------
 
  *
- * Author: Bruno Blais, Polytechnique Montreal, 2019-
+ * Author: Bruno Blais, Lucka Barbeau, Polytechnique Montreal, 2019-
  */
 
 #include "solvers/gls_sharp_navier_stokes.h"
@@ -97,12 +97,10 @@ void GLSNavierStokesSharpSolver<dim>::define_particules() {
         if (dim ==3) {
             for (unsigned int i=0 ; i< this->nsparam.particulesParameters.nb;++i) {
                 particules[i].resize(3 * dim+1);
-
                 //x y
                 particules[i][0] = this->nsparam.particulesParameters.particules[i][0];
                 particules[i][1] = this->nsparam.particulesParameters.particules[i][1];
                 particules[i][2] = this->nsparam.particulesParameters.particules[i][2];
-
                 //Vx Vy
                 particules[i][3] = this->nsparam.particulesParameters.particules[i][3];
                 particules[i][4] = this->nsparam.particulesParameters.particules[i][4];
@@ -292,13 +290,14 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
             double fy_p_0_ =Utilities::MPI::sum(fy_p_0, this->mpi_communicator);
             double fx_v_ =Utilities::MPI::sum(fx_v, this->mpi_communicator);
             double fy_v_ =Utilities::MPI::sum(fy_v, this->mpi_communicator);
+
+
+
+
+
             if  (this->this_mpi_process == 0){
-            std::cout << "ordre 0 fx_P: " << fx_p_0_ << std::endl;
-            std::cout << "ordre 0 fy_P: " << fy_p_0_ << std::endl;
-            std::cout << "ordre 1 fx_P: " << fx_p_1_ << std::endl;
-            std::cout << "ordre 1 fy_P: " << fy_p_1_ << std::endl;
-            std::cout << "ordre 2 fx_P: " << fx_p_2_ << std::endl;
-            std::cout << "ordre 2 fy_P: " << fy_p_2_ << std::endl;
+            std::cout << "fx_P: " << fx_p_2_ << std::endl;
+            std::cout << "fy_P: " << fy_p_2_ << std::endl;
             std::cout << "fx_v: " << fx_v_ << std::endl;
             std::cout << "fy_v: " << fy_v_ << std::endl;
             force_vect[0]=fx_p_2_+fx_v_;
@@ -309,6 +308,7 @@ void GLSNavierStokesSharpSolver<dim>::force_on_ib() {
                 table_f.add_value("particule ID", p);
                 table_f.add_value("f_x", fx_p_2_+fx_v_);
                 table_f.add_value("f_y", fy_p_2_+fy_v_);
+
                 table_f.set_precision("f_x",
                                             this->nsparam.forcesParameters.display_precision);
                 table_f.set_precision("f_y",
@@ -340,14 +340,43 @@ void GLSNavierStokesSharpSolver<dim>::integrate_particules() {
             this->simulationControl.getParameters();
     // simple explicite euler ofr displacement
 
+    if ( this->nsparam.particulesParameters.int_p_per_nb_iter != 1){
+        if (this->simulationControl.getIter() % this->nsparam.particulesParameters.int_p_per_nb_iter == 0 and this->simulationControl.getIter() != 0) {
+            if (dim == 2) {
+                for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
+
+                    //x y
+                    particules[i][0] = particules[i][0] + particules[i][2] * timeParameters.dt *
+                                                          (this->nsparam.particulesParameters.int_p_per_nb_iter - 1);
+                    particules[i][1] = particules[i][1] + particules[i][3] * timeParameters.dt *
+                                                          (this->nsparam.particulesParameters.int_p_per_nb_iter - 1);
+
+                }
+            }
+
+            if (dim == 3) {
+                for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
+
+                    //x y
+                    particules[i][0] = particules[i][0] + particules[i][3] * timeParameters.dt *
+                                                          (this->nsparam.particulesParameters.int_p_per_nb_iter - 1);
+                    particules[i][1] = particules[i][1] + particules[i][4] * timeParameters.dt *
+                                                          (this->nsparam.particulesParameters.int_p_per_nb_iter - 1);
+                    particules[i][2] = particules[i][2] + particules[i][5] * timeParameters.dt *
+                                                          (this->nsparam.particulesParameters.int_p_per_nb_iter - 1);
 
 
+                }
+            }
+        }
+    }
+    else{
         if (dim == 2) {
             for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
 
                 //x y
-                particules[i][0] = particules[i][0] + particules[i][2] * timeParameters.dt;
-                particules[i][1] = particules[i][1] + particules[i][3] * timeParameters.dt;
+                particules[i][0] = particules[i][0] + particules[i][2] * timeParameters.dt ;
+                particules[i][1] = particules[i][1] + particules[i][3] * timeParameters.dt ;
 
             }
         }
@@ -356,15 +385,14 @@ void GLSNavierStokesSharpSolver<dim>::integrate_particules() {
             for (unsigned int i = 0; i < this->nsparam.particulesParameters.nb; ++i) {
 
                 //x y
-                particules[i][0] = particules[i][0] + particules[i][3] * timeParameters.dt;
-                particules[i][1] = particules[i][1] + particules[i][4] * timeParameters.dt;
-                particules[i][2] = particules[i][2] + particules[i][5] * timeParameters.dt;
+                particules[i][0] = particules[i][0] + particules[i][3] * timeParameters.dt ;
+                particules[i][1] = particules[i][1] + particules[i][4] * timeParameters.dt ;
+                particules[i][2] = particules[i][2] + particules[i][5] * timeParameters.dt ;
 
 
             }
         }
-
-
+    }
 
 }
 
@@ -422,6 +450,8 @@ double GLSNavierStokesSharpSolver<dim>::calculate_L2_error_particules() {
 
     std::vector<Tensor<1, dim>> local_velocity_values(n_q_points);
     std::vector<double>         local_pressure_values(n_q_points);
+    std::vector<double> div_phi_u(dofs_per_cell);
+    std::vector<Tensor<2, dim>> present_velocity_gradients(n_q_points);
 
     Function<dim> *l_exact_solution = this->exact_solution;
 
@@ -431,6 +461,7 @@ double GLSNavierStokesSharpSolver<dim>::calculate_L2_error_particules() {
     DoFTools::map_dofs_to_support_points(immersed_map,this->dof_handler,support_points);
 
     double l2errorU = 0.;
+    double div = 0.;
 
     // loop over elements
     typename DoFHandler<dim>::active_cell_iterator cell = this->dof_handler
@@ -438,6 +469,7 @@ double GLSNavierStokesSharpSolver<dim>::calculate_L2_error_particules() {
             endc = this->dof_handler.end();
     for (; cell != endc; ++cell)
     {
+
         if (cell->is_locally_owned())
         {
             cell->get_dof_indices(local_dof_indices);
@@ -473,6 +505,9 @@ double GLSNavierStokesSharpSolver<dim>::calculate_L2_error_particules() {
                                                           local_velocity_values);
                 fe_values[pressure].get_function_values(this->present_solution,
                                                         local_pressure_values);
+                fe_values[velocities].get_function_gradients(
+                        this->evaluation_point, present_velocity_gradients);
+
 
                 // Retrieve the effective "connectivity matrix" for this element
                 cell->get_dof_indices(local_dof_indices);
@@ -480,8 +515,15 @@ double GLSNavierStokesSharpSolver<dim>::calculate_L2_error_particules() {
                 // Get the exact solution at all gauss points
                 l_exact_solution->vector_value_list(fe_values.get_quadrature_points(),
                                                     q_exactSol);
-
+                //double div_cell = 0.;
                 for (unsigned int q = 0; q < n_q_points; q++) {
+
+
+                    double present_velocity_divergence =
+                            trace(present_velocity_gradients[q]);
+                    div+=present_velocity_divergence* fe_values.JxW(q);
+
+
                     // Find the values of x and u_h (the finite element solution) at
                     // the quadrature points
                     double ux_sim = local_velocity_values[q][0];
@@ -489,7 +531,6 @@ double GLSNavierStokesSharpSolver<dim>::calculate_L2_error_particules() {
 
                     double uy_sim = local_velocity_values[q][1];
                     double uy_exact = q_exactSol[q][1];
-
                     l2errorU +=
                             (ux_sim - ux_exact) * (ux_sim - ux_exact) * fe_values.JxW(q);
                     l2errorU +=
@@ -506,6 +547,10 @@ double GLSNavierStokesSharpSolver<dim>::calculate_L2_error_particules() {
         }
     }
     l2errorU = Utilities::MPI::sum(l2errorU, this->mpi_communicator);
+    div = Utilities::MPI::sum(div, this->mpi_communicator);
+
+    this->pcout << "div: " << div << std::endl;
+
     return std::sqrt(l2errorU);
 
 }
@@ -586,6 +631,13 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
     std::vector<types::global_dof_index> local_dof_indices_2(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_3(dofs_per_cell);
     std::vector<types::global_dof_index> local_dof_indices_4(dofs_per_cell);
+
+    double dr = (GridTools::minimal_cell_diameter(*this->triangulation) *
+                 GridTools::minimal_cell_diameter(*this->triangulation)) / sqrt(2 *
+                                                                                (GridTools::minimal_cell_diameter(
+                                                                                        *this->triangulation) *
+                                                                                 GridTools::minimal_cell_diameter(
+                                                                                         *this->triangulation)));
 
 
     //define cell iterator
@@ -717,6 +769,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             unsigned int l = k;
                             while (l < local_dof_indices.size()) {
 
+
                                 if (dof_done(local_dof_indices[l])==0) {
                                     //dof_done(local_dof_indices[l]) += 1;
                                     // define which dof is going to be redefine
@@ -845,6 +898,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     }
 
                                     auto &cell_2 = active_neighbors[cell_found];
+                                    bool skip_stencil=false;
+
 
                                     if (break_bool == false) {
                                         std::cout << "cell not found around point " << std::endl;
@@ -882,13 +937,29 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     }
 
                                     //this->system_matrix.clear_row(global_index_overrigth);
+                                    bool do_rhs=false;
+                                    if(cell_2==cell)
+                                    {
+                                        skip_stencil=true;
+                                        this->system_matrix.set(global_index_overrigth,global_index_overrigth, sum_line);
+                                        this->system_rhs(global_index_overrigth)=0;
+                                        if (vect_dist.norm()<=0.000000000001)
+                                        {
+                                            do_rhs=true;
+                                        }
+                                        else{
+                                            this->system_rhs(global_index_overrigth)=0;
+                                        }
+                                    }
+
+
 
                                     double local_interp_sol=0;
                                     double local_interp_sol_2=0;
                                     double local_interp_sol_3=0;
                                     double local_interp_sol_4=0;
                                     //define the new matrix entry for this dof
-                                    if (true) {
+                                    if (skip_stencil==false) {
                                         // first the dof itself
                                         unsigned int n=k;
                                         while (n < local_dof_indices_2.size()) {
@@ -952,7 +1023,10 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
 
 
                                     // define our second point and last to be define the immersed boundary one  this point is where we applied the boundary condition as a dirichlet
-                                    if (true) {
+                                    if (skip_stencil==false or do_rhs ) {
+                                        if(do_rhs ){
+
+                                        }
                                         // different boundary condition depending if the odf is vx or vy and if the problem we solve
                                         if (k == 0) {
                                             if (dim==2) {
@@ -966,6 +1040,9 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                     this->system_rhs(global_index_overrigth) =vx*sum_line-active_solution[global_index_overrigth]*sum_line*dof_3-local_interp_sol*sp_3-local_interp_sol_2*tp_3;
                                                 if (this->nsparam.particulesParameters.order>3)
                                                     this->system_rhs(global_index_overrigth) =vx*sum_line-active_solution[global_index_overrigth]*sum_line*dof_5-local_interp_sol*sp_5-local_interp_sol_2*tp_5 -local_interp_sol_3*fp1_5-local_interp_sol_4*fp2_5;
+                                                if(do_rhs )
+                                                    this->system_rhs(global_index_overrigth) =vx*sum_line-active_solution[global_index_overrigth]*sum_line;
+
                                             }
                                             if (dim==3) {
                                                 double vx=particules[p][2];
@@ -975,6 +1052,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                     this->system_rhs(global_index_overrigth) =vx*sum_line-active_solution[global_index_overrigth]*sum_line*dof_3-local_interp_sol*sp_3-local_interp_sol_2*tp_3;
                                                 if (this->nsparam.particulesParameters.order>3)
                                                     this->system_rhs(global_index_overrigth) =vx*sum_line-active_solution[global_index_overrigth]*sum_line*dof_5-local_interp_sol*sp_5-local_interp_sol_2*tp_5 -local_interp_sol_3*fp1_5-local_interp_sol_4*fp2_5;
+                                                if(do_rhs )
+                                                    this->system_rhs(global_index_overrigth) =vx*sum_line-active_solution[global_index_overrigth]*sum_line;
                                             }
 
                                         }
@@ -991,7 +1070,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                     this->system_rhs(global_index_overrigth) =vy*sum_line-active_solution[global_index_overrigth]*sum_line*dof_3-local_interp_sol*sp_3-local_interp_sol_2*tp_3;
                                                 if (this->nsparam.particulesParameters.order>3)
                                                     this->system_rhs(global_index_overrigth) =vy*sum_line-active_solution[global_index_overrigth]*sum_line*dof_5-local_interp_sol*sp_5-local_interp_sol_2*tp_5 -local_interp_sol_3*fp1_5-local_interp_sol_4*fp2_5;
-
+                                                if(do_rhs )
+                                                    this->system_rhs(global_index_overrigth) =vy*sum_line-active_solution[global_index_overrigth]*sum_line;
                                             }
                                             if (dim==3) {
                                                 double vy=particules[p][3];
@@ -1001,7 +1081,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                     this->system_rhs(global_index_overrigth) =vy*sum_line-active_solution[global_index_overrigth]*sum_line*dof_3-local_interp_sol*sp_3-local_interp_sol_2*tp_3;
                                                 if (this->nsparam.particulesParameters.order>3)
                                                     this->system_rhs(global_index_overrigth) =vy*sum_line-active_solution[global_index_overrigth]*sum_line*dof_5-local_interp_sol*sp_5-local_interp_sol_2*tp_5 -local_interp_sol_3*fp1_5-local_interp_sol_4*fp2_5;
-
+                                                if(do_rhs)
+                                                    this->system_rhs(global_index_overrigth) =vy*sum_line-active_solution[global_index_overrigth]*sum_line;
                                             }
                                         }
                                         else if(k==2 & dim==3){
@@ -1012,6 +1093,8 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                                 this->system_rhs(global_index_overrigth) =vz*sum_line-active_solution[global_index_overrigth]*sum_line*dof_3-local_interp_sol*sp_3-local_interp_sol_2*tp_3;
                                             if (this->nsparam.particulesParameters.order>3)
                                                 this->system_rhs(global_index_overrigth) =vz*sum_line-active_solution[global_index_overrigth]*sum_line*dof_5-local_interp_sol*sp_5-local_interp_sol_2*tp_5 -local_interp_sol_3*fp1_5-local_interp_sol_4*fp2_5;
+                                            if(do_rhs)
+                                                this->system_rhs(global_index_overrigth) =vz*sum_line-active_solution[global_index_overrigth]*sum_line;
                                         }
                                     }
 
@@ -1029,6 +1112,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                             unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
                             unsigned int l=k;
                             while (l < local_dof_indices.size()) {
+
                                 bool pressure_impose= true;
                                 for (unsigned int vi = 0; vi < vertex_per_cell; ++vi) {
                                     unsigned int v_index = cell->vertex_index(vi);
@@ -1048,6 +1132,7 @@ void GLSNavierStokesSharpSolver<dim>::sharp_edge(const bool initial_step) {
                                     this->system_matrix.set(global_index_overrigth,global_index_overrigth,sum_line);
                                     this->system_rhs(global_index_overrigth)=0;
                                 }
+
                                 if (l < (dim + 1) *pow(1+this->nsparam.femParameters.pressureOrder,dim)) {
                                     l = l + dim + 1;
                                 } else {
@@ -1249,6 +1334,64 @@ GLSNavierStokesSharpSolver<dim>::setup_dofs()
 }
 
 template <int dim>
+void GLSNavierStokesSharpSolver<dim>::erase_inertia() {
+    Point<dim> center_immersed;
+
+
+    MappingQ1<dim> immersed_map;
+    std::map<types::global_dof_index, Point<dim >> support_points;
+    DoFTools::map_dofs_to_support_points(immersed_map, this->dof_handler, support_points);
+
+    // initalise fe value object in order to do calculation with it later
+    QGauss<dim> q_formula(this->degreeQuadrature_);
+    FEValues<dim> fe_values(this->fe, q_formula, update_quadrature_points | update_JxW_values);
+    const unsigned int dofs_per_cell = this->fe.dofs_per_cell;
+    unsigned int vertex_per_cell = GeometryInfo<dim>::vertices_per_cell;
+
+
+    unsigned int n_q_points = q_formula.size();
+
+    std::vector<types::global_dof_index> local_dof_indices(dofs_per_cell);
+    ib_dof.reinit(this->dof_handler.n_dofs());
+
+    const auto &cell_iterator = this->dof_handler.active_cell_iterators();
+    for (const auto &cell : cell_iterator) {
+        if (cell->is_locally_owned()) {
+            cell->get_dof_indices(local_dof_indices);
+            for (unsigned int k = 0; k < particules.size(); ++k) {
+                unsigned int count_small = 0;
+                unsigned int count_small_last_step = 0;
+                if (dim == 2) {
+                    center_immersed(0) = particules[k][0];
+                    center_immersed(1) = particules[k][1];
+
+                } else if (dim == 3) {
+                    center_immersed(0) = particules[k][0];
+                    center_immersed(1) = particules[k][1];
+                    center_immersed(2) = particules[k][2];
+                }
+
+                for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
+                    //count the number of dof that are smaller or larger then the radius of the particules
+                    //if all the dof are on one side the cell is not cut by the boundary meaning we dont have to do anything
+                    if ((support_points[local_dof_indices[j]] - center_immersed).norm() <=
+                        particules[k][particules[k].size() - 1]) {
+                        ++count_small;
+                    }
+                }
+
+                if (count_small != 0 and count_small!= local_dof_indices.size()){
+                    for( unsigned int i=0 ; i<local_dof_indices.size();++i ){
+                        this->solution_m1[local_dof_indices[i]]=this->present_solution[local_dof_indices[i]];
+                        ib_dof[local_dof_indices[i]]=1;
+                    }
+                }
+            }
+        }
+    }
+}
+
+template <int dim>
 template <bool                                              assemble_matrix,
         Parameters::SimulationControl::TimeSteppingMethod scheme>
 void
@@ -1258,7 +1401,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
     if (assemble_matrix)
         system_matrix = 0;
     this->system_rhs = 0;
-
+    //erase_inertia();
     double viscosity_ = this->nsparam.physicalProperties.viscosity;
     Function <dim> *l_forcing_function = this->forcing_function;
 
@@ -1364,6 +1507,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
             cell->get_dof_indices(local_dof_indices);
             for (unsigned int k = 0; k < particules.size(); ++k){
                 unsigned int count_small = 0;
+                unsigned int count_small_last_step = 0;
                 if (dim == 2) {
                     center_immersed(0) = particules[k][0];
                     center_immersed(1) = particules[k][1];
@@ -1379,7 +1523,6 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                     pressure_bridge(0) = particules[k][0]-this->nsparam.particulesParameters.pressure_offset[k][0];
                     pressure_bridge(1) = particules[k][1]-this->nsparam.particulesParameters.pressure_offset[k][1];
                     pressure_bridge(2) = particules[k][2]-this->nsparam.particulesParameters.pressure_offset[k][2];
-
                 }
 
                 for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
@@ -1402,8 +1545,14 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                     }
                 }
             }
-            // assemble the cell only if the cell is not cut by a IB
-            //assemble_bool=true;
+
+            if ( this->nsparam.particulesParameters.int_p_per_nb_iter != 1) {
+                if (this->simulationControl.getIter() % this->nsparam.particulesParameters.int_p_per_nb_iter == 0 and
+                    this->simulationControl.getIter() != 0) {
+                    assemble_bool = false;
+                }
+            }
+
             if (assemble_bool==true ) {
 
 
@@ -1443,11 +1592,11 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
             // Gather the previous time steps depending on the number of stages
             // of the time integration scheme
             if (scheme !=
-                Parameters::SimulationControl::TimeSteppingMethod::steady)
+                Parameters::SimulationControl::TimeSteppingMethod::steady )
                 fe_values[velocities].get_function_values(this->solution_m1,
                                                           p1_velocity_values);
 
-            if (time_stepping_method_has_two_stages(scheme))
+            if (time_stepping_method_has_two_stages(scheme) )
                 fe_values[velocities].get_function_values(this->solution_m2,
                                                           p2_velocity_values);
 
@@ -1518,7 +1667,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                  */
 
                 if (scheme ==
-                    Parameters::SimulationControl::TimeSteppingMethod::bdf1)
+                    Parameters::SimulationControl::TimeSteppingMethod::bdf1 )
                     strong_residual += bdf_coefs[0] * present_velocity_values[q] +
                                        bdf_coefs[1] * p1_velocity_values[q];
 
@@ -1541,7 +1690,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                             sdirk_coefs[0][0] * present_velocity_values[q] +
                             sdirk_coefs[0][1] * p1_velocity_values[q];
 
-                if (is_sdirk_step2(scheme)) {
+                if (is_sdirk_step2(scheme) ) {
                     strong_residual +=
                             sdirk_coefs[1][0] * present_velocity_values[q] +
                             sdirk_coefs[1][1] * p1_velocity_values[q] +
@@ -1566,15 +1715,14 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                                  grad_phi_u[j] * present_velocity_values[q] +
                                  grad_phi_p[j] - viscosity_ * laplacian_phi_u[j]);
 
-                        if (is_bdf(scheme))
+                        if (is_bdf(scheme) )
                             strong_jac += phi_u[j] * bdf_coefs[0];
-                        if (is_sdirk(scheme))
+                        if (is_sdirk(scheme) )
                             strong_jac += phi_u[j] * sdirk_coefs[0][0];
 
                         for (unsigned int i = 0; i < dofs_per_cell; ++i) {
                             local_matrix(i, j) +=
-                                    (
-                                            // Momentum terms
+                                    (// Momentum terms
                                             viscosity_ *
                                             scalar_product(grad_phi_u[j], grad_phi_u[i]) +
                                             present_velocity_gradients[q] * phi_u[j] *
@@ -1592,7 +1740,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                                                       bdf_coefs[0] *
                                                       fe_values.JxW(q);
 
-                            if (is_sdirk(scheme))
+                            if (is_sdirk(scheme) )
                                 local_matrix(i, j) += phi_u[j] * phi_u[i] *
                                                       sdirk_coefs[0][0] *
                                                       fe_values.JxW(q);
@@ -1657,14 +1805,14 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
 
                     // Residual associated with BDF schemes
                     if (scheme ==
-                        Parameters::SimulationControl::TimeSteppingMethod::bdf1)
+                        Parameters::SimulationControl::TimeSteppingMethod::bdf1 )
                         local_rhs(i) -=
                                 bdf_coefs[0] *
                                 (present_velocity_values[q] - p1_velocity_values[q]) *
                                 phi_u[i] * fe_values.JxW(q);
 
                     if (scheme ==
-                        Parameters::SimulationControl::TimeSteppingMethod::bdf2)
+                        Parameters::SimulationControl::TimeSteppingMethod::bdf2 )
                         local_rhs(i) -=
                                 (bdf_coefs[0] * (present_velocity_values[q] * phi_u[i]) +
                                  bdf_coefs[1] * (p1_velocity_values[q] * phi_u[i]) +
@@ -1681,7 +1829,7 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                                 fe_values.JxW(q);
 
                     // Residuals associated with SDIRK schemes
-                    if (is_sdirk_step1(scheme))
+                    if (is_sdirk_step1(scheme) )
                         local_rhs(i) -=
                                 (sdirk_coefs[0][0] *
                                  (present_velocity_values[q] * phi_u[i]) +
@@ -1782,7 +1930,16 @@ GLSNavierStokesSharpSolver<dim>::assembleGLS() {
                 }
             else{
                 // could assemble someting in the cells tahat are cut  have to code it here
-
+                if ( this->nsparam.particulesParameters.int_p_per_nb_iter != 1) {
+                    if (this->simulationControl.getIter() % this->nsparam.particulesParameters.int_p_per_nb_iter ==
+                        0 and this->simulationControl.getIter() != 0) {
+                        for (unsigned int j = 0; j < local_dof_indices.size(); ++j) {
+                            this->system_matrix.clear_row(local_dof_indices[j]);
+                            this->system_matrix.set(local_dof_indices[j], local_dof_indices[j], 1);
+                            this->system_rhs(local_dof_indices[j]) = 0;
+                        }
+                    }
+                }
             }
         }
     }
@@ -2399,7 +2556,8 @@ GLSNavierStokesSharpSolver<dim>::solve()
 //   this->iterate(true);
       this->postprocess(false);
       this->finish_time_step();
-      force_on_ib();
+      if((this->simulationControl.getIter()+1)% this->nsparam.particulesParameters.int_p_per_nb_iter==0 and this->simulationControl.getIter()!=0)
+        force_on_ib();
       finish_time_step_particules();
       //integrate_particules();
       iter_ib+=1;

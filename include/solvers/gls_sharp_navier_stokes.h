@@ -102,6 +102,9 @@ private:
   set_nodal_values();
 
   void
+  erase_inertia();
+
+  void
   refine_ib();
 
   /**
@@ -177,6 +180,7 @@ private:
   std::vector<std::vector<double>> particules;
   bool initial_step_bool;
   unsigned int iter_ib=0;
+  Vector<double> ib_dof;
 
   TableHandler table_f;
   TableHandler table_t;
