@@ -5,8 +5,8 @@
 #---------------------------------------------------
 subsection simulation control
   set method                  = steady
-  set number mesh adapt       = 3
-  set output name             = couette2d_
+  set number mesh adapt       = 2
+  set output name             = results_couette2d
 end
 
 #---------------------------------------------------
@@ -100,6 +100,7 @@ subsection particules
 	set refine mesh inside radius factor= 0.5
 	set stencil order = 5
 	set refine mesh outside radius factor=1.1
+	set nb skip =1
     subsection x y z vx vy vz omega_x omega_y omega_z radius particule 0 
             set X = 0
 	    set Y = 0
@@ -192,5 +193,5 @@ subsection linear solver
   set amg smoother overlap                      = 1
   set amg smoother sweeps                       = 2
   set amg w cycles                              = false
-  set verbosity               = verbose
+  set verbosity               = quiet
 end
